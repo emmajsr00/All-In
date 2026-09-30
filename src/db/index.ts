@@ -7,10 +7,12 @@ import type {
   TeacherAssignment,
   EvaluationConfig,
   Student,
-  AttendanceRecord,
-  LearningIndicator,
-  IndicatorScore,
-  EvaluationItemScore,
+  ClassSession,
+  SessionStudentDetail,
+  TaskGrade,
+  ExamGrade,
+  ProjectGrade,
+  PortfolioGrade,
   ScheduleItem
 } from '../types';
 
@@ -22,14 +24,16 @@ export class EduGradeDatabase extends Dexie {
   assignments!: Table<TeacherAssignment, string>;
   students!: Table<Student, string>;
   evaluationConfigs!: Table<EvaluationConfig, string>;
-  attendance!: Table<AttendanceRecord, string>;
-  indicators!: Table<LearningIndicator, string>;
-  indicatorScores!: Table<IndicatorScore, string>;
-  evaluationItemScores!: Table<EvaluationItemScore, string>;
+  classSessions!: Table<ClassSession, string>;
+  sessionDetails!: Table<SessionStudentDetail, string>;
+  taskGrades!: Table<TaskGrade, string>;
+  examGrades!: Table<ExamGrade, string>;
+  projectGrades!: Table<ProjectGrade, string>;
+  portfolioGrades!: Table<PortfolioGrade, string>;
   schedules!: Table<ScheduleItem, string>;
 
   constructor() {
-    super('EduGradeProDB');
+    super('EduGradeProDB_v2');
     this.version(1).stores({
       institutions: 'id, code, type',
       users: 'id, email, role, institutionId',
@@ -38,10 +42,12 @@ export class EduGradeDatabase extends Dexie {
       assignments: 'id, teacherId, groupId, subjectId',
       students: 'id, groupId, idNumber, firstLastName, secondLastName',
       evaluationConfigs: 'id, assignmentId, periodId',
-      attendance: 'id, assignmentId, studentId, date, status',
-      indicators: 'id, assignmentId, periodId',
-      indicatorScores: 'id, indicatorId, studentId',
-      evaluationItemScores: 'id, assignmentId, studentId, category',
+      classSessions: 'id, assignmentId, periodId, date',
+      sessionDetails: 'id, sessionId, studentId, attendance',
+      taskGrades: 'id, assignmentId, studentId, periodId, taskNumber',
+      examGrades: 'id, assignmentId, studentId, periodId, examNumber',
+      projectGrades: 'id, assignmentId, studentId, periodId, projectNumber',
+      portfolioGrades: 'id, assignmentId, studentId, periodId',
       schedules: 'id, teacherId, groupId, subjectId, dayOfWeek'
     });
   }
@@ -75,7 +81,7 @@ export async function seedDatabaseIfEmpty() {
 
   await db.institutions.bulkAdd([ctpPoas, personalWorkspace]);
 
-  // 3. Usuarios de prueba con diferentes roles
+  // 3. Usuarios de prueba
   const users: User[] = [
     {
       id: 'user-hellen',
@@ -162,7 +168,7 @@ export async function seedDatabaseIfEmpty() {
 
   await db.groups.bulkAdd(groups);
 
-  // 6. Asignaciones Docentes (Demuestra: Profe con múltiples materias en el mismo grupo y en otros grupos)
+  // 6. Asignaciones Docentes (Separadas por materia aunque sea el mismo grupo)
   const assignments: TeacherAssignment[] = [
     {
       id: 'asg-hellen-12-1-bus',
@@ -215,7 +221,7 @@ export async function seedDatabaseIfEmpty() {
 
   await db.students.bulkAdd(students121);
 
-  // 8. Configuración Evaluativa Modular (Fórmula exacta del Excel 12-1.xlsm)
+  // 8. Configuración Evaluativa Modular (Fórmulas exactas del Excel 12-1.xlsm)
   const evalConfig121: EvaluationConfig = {
     id: 'cfg-asg-121-bus-i',
     assignmentId: 'asg-hellen-12-1-bus',
@@ -223,112 +229,144 @@ export async function seedDatabaseIfEmpty() {
     passingGrade: 70,
     periodWeight: 50,
     rubrics: [
-      { id: 'r-asis', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Asistencia y puntualidad a lecciones' },
-      { id: 'r-cot', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Desempeño diario en el aula con rúbricas de aprendizaje' },
-      { id: 'r-tar', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: 'Tareas individuales y extra-clase' },
-      { id: 'r-eva', key: 'evaluaciones', label: 'Pruebas / Evaluaciones', enabled: true, percentage: 45, description: 'Exámenes y pruebas comprensivas' },
-      { id: 'r-pro', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15, description: 'Proyectos de investigación o ejecución técnica' },
-      { id: 'r-por', key: 'portafolio', label: 'Portafolio de Evidencias', enabled: false, percentage: 0, description: 'Recopilación estructurada de evidencias' }
+      { id: 'r-asis', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Porcentaje calculado según faltas y total de lecciones' },
+      { id: 'r-cot', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Suma de desempeño por clase y lecciones efectivas' },
+      { id: 'r-tar', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: '2 tareas (5% cada una)' },
+      { id: 'r-eva', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Prueba 1 (20%) y Prueba 2 (25%)' },
+      { id: 'r-pro', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15, description: 'Proyecto técnico de periodo' },
+      { id: 'r-por', key: 'portafolio', label: 'Portafolio de Evidencias', enabled: false, percentage: 0, description: 'Opcional (Activable según colegio o materia)' }
+    ],
+    taskWeights: [
+      { taskNumber: 1, percentage: 5 },
+      { taskNumber: 2, percentage: 5 }
+    ],
+    examWeights: [
+      { examNumber: 1, percentage: 20 },
+      { examNumber: 2, percentage: 25 }
+    ],
+    projectWeights: [
+      { projectNumber: 1, percentage: 15 }
     ]
   };
 
   await db.evaluationConfigs.add(evalConfig121);
 
-  // 9. Horarios semanales para detección inteligente de la clase actual
-  const schedules: ScheduleItem[] = [
-    {
-      id: 'sch-01',
-      teacherId: 'user-hellen',
-      groupId: 'grp-12-1',
-      subjectId: 'sub-eng-business',
-      dayOfWeek: 1, // Lunes
-      startTime: '07:00',
-      endTime: '09:30',
-      classroom: 'Laboratorio de Idiomas 2'
-    },
-    {
-      id: 'sch-02',
-      teacherId: 'user-hellen',
-      groupId: 'grp-12-1',
-      subjectId: 'sub-eng-oral',
-      dayOfWeek: 1, // Lunes
-      startTime: '09:45',
-      endTime: '11:15',
-      classroom: 'Aula 14'
-    },
-    {
-      id: 'sch-03',
-      teacherId: 'user-hellen',
-      groupId: 'grp-12-1',
-      subjectId: 'sub-eng-business',
-      dayOfWeek: 3, // Miércoles
-      startTime: '07:00',
-      endTime: '11:15',
-      classroom: 'Laboratorio de Idiomas 2'
-    },
-    {
-      id: 'sch-04',
-      teacherId: 'user-hellen',
-      groupId: 'grp-11-2',
-      subjectId: 'sub-eng-business',
-      dayOfWeek: 4, // Jueves
-      startTime: '08:00',
-      endTime: '12:00',
-      classroom: 'Aula 22'
-    }
+  // 9. Clases reales impartidas (Extraídas de la hoja Asis. Cot IP del Excel)
+  // Cada clase tiene su fecha y lecciones (3 lecciones por clase)
+  const sessions: ClassSession[] = [
+    { id: 'sess-01', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-02-27', lessonsCount: 3, topic: 'Professional Greeting & Executive Phone Etiquette' },
+    { id: 'sess-02', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-02', lessonsCount: 3, topic: 'Customer Inquiry & Active Listening' },
+    { id: 'sess-03', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-06', lessonsCount: 3, topic: 'Troubleshooting Protocols & Polite Expressions' },
+    { id: 'sess-04', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-09', lessonsCount: 3, topic: 'Customer Service Emails & Case Studies' },
+    { id: 'sess-05', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-13', lessonsCount: 3, topic: 'Oral Presentation & Role Play Practice' }
   ];
 
-  await db.schedules.bulkAdd(schedules);
+  await db.classSessions.bulkAdd(sessions);
 
-  // 10. Indicadores de muestra para trabajo cotidiano
-  const sampleIndicators: LearningIndicator[] = [
-    {
-      id: 'ind-01',
-      assignmentId: 'asg-hellen-12-1-bus',
-      periodId: 'I_PERIODO',
-      code: 'IND-01',
-      title: 'Professional Greeting & Executive Phone Etiquette',
-      description: 'Aplica fórmulas de cortesía y vocabulario profesional en atención a llamadas corporativas simuladas.',
-      maxPoints: 3
-    },
-    {
-      id: 'ind-02',
-      assignmentId: 'asg-hellen-12-1-bus',
-      periodId: 'I_PERIODO',
-      code: 'IND-02',
-      title: 'Customer Inquiry & Troubleshooting Protocols',
-      description: 'Elabora respuestas estructuradas y asertivas frente a consultas de clientes utilizando lenguaje formal.',
-      maxPoints: 3
-    }
-  ];
+  // 10. Detalle de asistencia y cotidiano por estudiante para cada clase
+  // Alumnos reales del Excel con niveles 1 (Inicial 0.25), 2 (Intermedio 0.5), 3 (Avanzado 1.0)
+  const sessionDetails: SessionStudentDetail[] = [];
+  sessions.forEach(sess => {
+    students121.forEach((st, idx) => {
+      let att: SessionStudentDetail['attendance'] = 'PRESENT';
+      let lvl: SessionStudentDetail['cotidianoLevel'] = 3; // Avanzado
 
-  await db.indicators.bulkAdd(sampleIndicators);
+      if (idx === 7 && sess.id === 'sess-02') {
+        att = 'UNEXCUSED_ABSENCE';
+        lvl = 0;
+      } else if (idx === 5 && sess.id === 'sess-03') {
+        att = 'TARDY';
+        lvl = 2; // Intermedio
+      } else if (idx === 14 && sess.id === 'sess-04') {
+        att = 'EXCUSED_ABSENCE';
+        lvl = 0;
+      } else if (idx === 8 && sess.id === 'sess-01') {
+        lvl = 2; // Intermedio
+      }
 
-  // 11. Asistencias de muestra
-  const todayStr = new Date().toISOString().split('T')[0];
-  const attendanceRecords: AttendanceRecord[] = students121.map((s, index) => {
-    let status: AttendanceRecord['status'] = 'PRESENT';
-    if (index === 2) status = 'TARDY';
-    if (index === 7) status = 'UNEXCUSED_ABSENCE';
-    if (index === 14) status = 'EXCUSED_ABSENCE';
-    return {
-      id: `att-${todayStr}-${s.id}`,
-      assignmentId: 'asg-hellen-12-1-bus',
-      studentId: s.id,
-      date: todayStr,
-      status
-    };
+      sessionDetails.push({
+        id: `dtl-${sess.id}-${st.id}`,
+        sessionId: sess.id,
+        studentId: st.id,
+        attendance: att,
+        cotidianoLevel: lvl
+      });
+    });
   });
 
-  await db.attendance.bulkAdd(attendanceRecords);
+  await db.sessionDetails.bulkAdd(sessionDetails);
 
-  // 12. Puntuaciones de indicadores
-  const scores: IndicatorScore[] = [
-    { id: 'sc-1', indicatorId: 'ind-01', studentId: 'std-01', score: 3 },
-    { id: 'sc-2', indicatorId: 'ind-01', studentId: 'std-02', score: 3 },
-    { id: 'sc-3', indicatorId: 'ind-01', studentId: 'std-03', score: 3 },
-    { id: 'sc-4', indicatorId: 'ind-01', studentId: 'std-04', score: 2 },
-    { id: 'sc-5', indicatorId: 'ind-01', studentId: 'std-05', score: 3 }
+  // 11. Notas de Tareas reales extraídas del Excel
+  const taskGrades: TaskGrade[] = [];
+  students121.forEach((st, idx) => {
+    // Tarea 1 (5%) y Tarea 2 (5%)
+    const t1 = idx === 0 ? 4.54 : idx === 1 ? 4.37 : 5.0;
+    const t2 = idx === 0 ? 5.0 : idx === 1 ? 4.70 : idx === 4 ? 3.86 : 5.0;
+
+    taskGrades.push({
+      id: `tg-${st.id}-1`,
+      assignmentId: 'asg-hellen-12-1-bus',
+      studentId: st.id,
+      periodId: 'I_PERIODO',
+      taskNumber: 1,
+      percentageEarned: t1
+    });
+    taskGrades.push({
+      id: `tg-${st.id}-2`,
+      assignmentId: 'asg-hellen-12-1-bus',
+      studentId: st.id,
+      periodId: 'I_PERIODO',
+      taskNumber: 2,
+      percentageEarned: t2
+    });
+  });
+  await db.taskGrades.bulkAdd(taskGrades);
+
+  // 12. Notas de Evaluaciones reales (Prueba 1 sobre 20%, Prueba 2 sobre 25%)
+  const examGrades: ExamGrade[] = [];
+  students121.forEach((st, idx) => {
+    const e1 = idx === 0 ? 19.23 : idx === 1 ? 20.0 : idx === 8 ? 16.5 : 19.5;
+    const e2 = idx === 0 ? 24.01 : idx === 1 ? 23.03 : idx === 8 ? 21.0 : 24.5;
+
+    examGrades.push({
+      id: `eg-${st.id}-1`,
+      assignmentId: 'asg-hellen-12-1-bus',
+      studentId: st.id,
+      periodId: 'I_PERIODO',
+      examNumber: 1,
+      percentageEarned: e1
+    });
+    examGrades.push({
+      id: `eg-${st.id}-2`,
+      assignmentId: 'asg-hellen-12-1-bus',
+      studentId: st.id,
+      periodId: 'I_PERIODO',
+      examNumber: 2,
+      percentageEarned: e2
+    });
+  });
+  await db.examGrades.bulkAdd(examGrades);
+
+  // 13. Notas de Proyecto (15%)
+  const projectGrades: ProjectGrade[] = [];
+  students121.forEach((st, idx) => {
+    projectGrades.push({
+      id: `pg-${st.id}-1`,
+      assignmentId: 'asg-hellen-12-1-bus',
+      studentId: st.id,
+      periodId: 'I_PERIODO',
+      projectNumber: 1,
+      percentageEarned: idx === 8 ? 13.5 : 15.0
+    });
+  });
+  await db.projectGrades.bulkAdd(projectGrades);
+
+  // 14. Horarios semanales
+  const schedules: ScheduleItem[] = [
+    { id: 'sch-01', teacherId: 'user-hellen', groupId: 'grp-12-1', subjectId: 'sub-eng-business', dayOfWeek: 1, startTime: '07:00', endTime: '09:30', classroom: 'Laboratorio de Idiomas 2' },
+    { id: 'sch-02', teacherId: 'user-hellen', groupId: 'grp-12-1', subjectId: 'sub-eng-oral', dayOfWeek: 1, startTime: '09:45', endTime: '11:15', classroom: 'Aula 14' },
+    { id: 'sch-03', teacherId: 'user-hellen', groupId: 'grp-12-1', subjectId: 'sub-eng-business', dayOfWeek: 3, startTime: '07:00', endTime: '11:15', classroom: 'Laboratorio de Idiomas 2' },
+    { id: 'sch-04', teacherId: 'user-hellen', groupId: 'grp-11-2', subjectId: 'sub-eng-business', dayOfWeek: 4, startTime: '08:00', endTime: '12:00', classroom: 'Aula 22' }
   ];
-  await db.indicatorScores.bulkAdd(scores);
+  await db.schedules.bulkAdd(schedules);
 }

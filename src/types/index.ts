@@ -19,16 +19,16 @@ export interface User {
   email: string;
   role: UserRole;
   institutionId: string;
-  title?: string; // e.g. "Docente de Inglés", "Directora Académica"
+  title?: string;
   avatarUrl?: string;
 }
 
 export interface Group {
   id: string;
   institutionId: string;
-  grade: number; // e.g. 12
+  grade: number;
   sectionCode: string; // e.g. "12-1"
-  year: number; // 2026
+  year: number;
   specialty?: string; // e.g. "Ejecutivo para Centro de Servicios"
   guideTeacherId?: string;
 }
@@ -54,17 +54,21 @@ export interface EvaluationRubricItem {
   key: 'asistencia' | 'cotidiano' | 'tareas' | 'evaluaciones' | 'proyectos' | 'portafolio' | string;
   label: string;
   enabled: boolean;
-  percentage: number; // e.g. 25
+  percentage: number;
   description?: string;
 }
 
 export interface EvaluationConfig {
   id: string;
-  assignmentId: string; // linked to teacher + group + subject
-  periodId: 'I_PERIODO' | 'II_PERIODO' | 'III_PERIODO';
-  passingGrade: number; // e.g. 70
+  assignmentId: string;
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  passingGrade: number; // e.g. 70 o 80
   periodWeight: number; // e.g. 50%
   rubrics: EvaluationRubricItem[];
+  // Ponderaciones internas de tareas y evaluaciones
+  taskWeights?: { taskNumber: number; percentage: number }[];
+  examWeights?: { examNumber: number; percentage: number }[];
+  projectWeights?: { projectNumber: number; percentage: number }[];
 }
 
 export type AccommodationType = 'NONE' | 'NON_SIGNIFICANT' | 'SIGNIFICANT' | 'ACCESS';
@@ -76,54 +80,67 @@ export interface Student {
   firstName: string;
   firstLastName: string;
   secondLastName: string;
-  gender?: 'M' | 'F' | 'OTHER';
-  email?: string;
-  parentContact?: string;
   accommodation?: AccommodationType;
-  notes?: string;
+  parentContact?: string;
 }
 
-export type AttendanceStatus = 'PRESENT' | 'UNEXCUSED_ABSENCE' | 'EXCUSED_ABSENCE' | 'TARDY';
+export type AttendanceStatus =
+  | 'PRESENT'              // Presente
+  | 'UNEXCUSED_ABSENCE'   // Ausencia Injustificada
+  | 'LESSON_ESCAPE'        // Escape de Lecciones
+  | 'TARDY'                // Llegada Tardía
+  | 'EXCUSED_ABSENCE';     // Ausencia Justificada / Motivada
 
-export interface AttendanceRecord {
+export interface ClassSession {
   id: string;
   assignmentId: string;
-  studentId: string;
+  periodId: 'I_PERIODO' | 'II_PERIODO';
   date: string; // YYYY-MM-DD
-  status: AttendanceStatus;
-  lessonNumber?: number; // e.g. 1st block, 2nd block
-  notes?: string;
+  lessonsCount: number; // Cantidad de lecciones (ej: 2, 3 o 4 lecciones)
+  topic?: string;
 }
 
-export interface LearningIndicator {
+export interface SessionStudentDetail {
   id: string;
-  assignmentId: string;
-  periodId: string;
-  code: string; // e.g. "IND-01"
-  title: string;
-  description: string;
-  maxPoints: number; // e.g. 3 (1=Inicial, 2=Intermedio, 3=Avanzado)
-}
-
-export interface IndicatorScore {
-  id: string;
-  indicatorId: string;
+  sessionId: string;
   studentId: string;
-  score: number; // 1, 2, 3
-  feedback?: string;
+  attendance: AttendanceStatus;
+  cotidianoLevel: 0 | 1 | 2 | 3; // 0=No eval/ausente, 1=Inicial (0.25), 2=Intermedio (0.50), 3=Avanzado (1.00)
 }
 
-export interface EvaluationItemScore {
+export interface TaskGrade {
   id: string;
   assignmentId: string;
   studentId: string;
-  periodId: string;
-  category: 'tareas' | 'evaluaciones' | 'proyectos' | 'portafolio';
-  itemTitle: string; // e.g. "Prueba Parcial 1" o "Tarea 1"
-  itemNumber: number;
-  pointsEarned: number;
-  pointsTotal: number;
-  percentageWeight: number; // e.g. 20%
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  taskNumber: number;
+  percentageEarned: number;
+}
+
+export interface ExamGrade {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  examNumber: number;
+  percentageEarned: number;
+}
+
+export interface ProjectGrade {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  projectNumber: number;
+  percentageEarned: number;
+}
+
+export interface PortfolioGrade {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  percentageEarned: number;
 }
 
 export interface ScheduleItem {
@@ -131,8 +148,8 @@ export interface ScheduleItem {
   teacherId: string;
   groupId: string;
   subjectId: string;
-  dayOfWeek: 1 | 2 | 3 | 4 | 5; // 1=Lunes, 5=Viernes
-  startTime: string; // "07:00"
-  endTime: string; // "08:20"
+  dayOfWeek: 1 | 2 | 3 | 4 | 5;
+  startTime: string;
+  endTime: string;
   classroom?: string;
 }

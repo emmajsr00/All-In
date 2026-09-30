@@ -12,7 +12,8 @@ import {
   Layers,
   ChevronRight,
   TrendingUp,
-  Award
+  Award,
+  ArrowRight
 } from 'lucide-react';
 import type {
   User,
@@ -34,9 +35,7 @@ interface DashboardProps {
   students: Student[];
   evaluationConfigs: EvaluationConfig[];
   schedules: ScheduleItem[];
-  onOpenAttendance: (assignment: TeacherAssignment) => void;
-  onOpenDailyWork: (assignment: TeacherAssignment) => void;
-  onOpenGradebook: (assignment: TeacherAssignment) => void;
+  onSelectAssignment: (assignment: TeacherAssignment) => void;
   onOpenRubricsConfig: (assignment: TeacherAssignment) => void;
   onOpenSchedule: () => void;
 }
@@ -50,26 +49,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   students,
   evaluationConfigs,
   schedules,
-  onOpenAttendance,
-  onOpenDailyWork,
-  onOpenGradebook,
+  onSelectAssignment,
   onOpenRubricsConfig,
   onOpenSchedule
 }) => {
-  // Filter assignments for the current user
   const userAssignments = assignments.filter(a => a.teacherId === currentUser.id);
 
   // Smart Schedule detector: Find if there is an active class right now
   const [currentActiveSchedule, setCurrentActiveSchedule] = useState<ScheduleItem | null>(null);
-  const [forceSimulatedClass, setForceSimulatedClass] = useState<boolean>(true); // Por defecto activo para demostración inmediata
 
   useEffect(() => {
     const checkSchedule = () => {
       const now = new Date();
-      const currentDay = now.getDay(); // 1=Mon..5=Fri
+      const currentDay = now.getDay();
       const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      // Buscar si coincide
       const found = schedules.find(s => {
         if (s.teacherId !== currentUser.id) return false;
         if (s.dayOfWeek === currentDay && currentTimeStr >= s.startTime && currentTimeStr <= s.endTime) {
@@ -80,19 +74,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       if (found) {
         setCurrentActiveSchedule(found);
-      } else if (forceSimulatedClass && schedules.length > 0) {
-        // Modo simulación si está fuera del horario escolar para permitir probarlo ya
+      } else if (schedules.length > 0) {
+        // En demostración mostramos la primera para que el docente pueda ver la experiencia activa
         const teacherSchedules = schedules.filter(s => s.teacherId === currentUser.id);
         setCurrentActiveSchedule(teacherSchedules[0] || null);
-      } else {
-        setCurrentActiveSchedule(null);
       }
     };
 
     checkSchedule();
     const timer = setInterval(checkSchedule, 60000);
     return () => clearInterval(timer);
-  }, [currentUser.id, schedules, forceSimulatedClass]);
+  }, [currentUser.id, schedules]);
 
   const activeAssignment = currentActiveSchedule
     ? userAssignments.find(a => a.groupId === currentActiveSchedule.groupId && a.subjectId === currentActiveSchedule.subjectId)
@@ -101,7 +93,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const activeGroup = activeAssignment ? groups.find(g => g.id === activeAssignment.groupId) : null;
   const activeSubject = activeAssignment ? subjects.find(s => s.id === activeAssignment.subjectId) : null;
 
-  // Fecha actual formateada
   const todayFormatted = new Intl.DateTimeFormat('es-CR', {
     weekday: 'long',
     day: 'numeric',
@@ -133,7 +124,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ¡Hola, <span className="gradient-text">{currentUser.name}</span>!
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '6px', maxWidth: '650px' }}>
-              Bienvenido a tu panel de control docente. Gestiona la asistencia diaria, califica por indicadores y personaliza los rubros evaluativos de tus secciones con sincronización automática.
+              Bienvenido a tu panel docente. Abre cualquiera de tus grupos para acceder al registro general de calificaciones, control de asistencia por lecciones y evaluación por rubros individuales.
             </p>
           </div>
 
@@ -154,7 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }}>
           <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Users size={14} color="#4f46e5" /> Grupos Asignados
+              <Users size={14} color="#4f46e5" /> Grupos a Cargo
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
               {new Set(userAssignments.map(a => a.groupId)).size} Grupos
@@ -163,7 +154,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <BookOpen size={14} color="#06b6d4" /> Materias / Módulos
+              <BookOpen size={14} color="#06b6d4" /> Materias Impartidas
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
               {userAssignments.length} Asignaturas
@@ -172,7 +163,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Award size={14} color="#10b981" /> Total Estudiantes
+              <Award size={14} color="#10b981" /> Estudiantes Registrados
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
               {students.length} Alumnos
@@ -190,7 +181,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Smart Active Class Card (Requested feature: Automate evaluation when scheduled class begins) */}
+      {/* Smart Active Class Card */}
       {currentActiveSchedule && activeAssignment && (
         <div className="glass-panel" style={{
           padding: '20px 24px',
@@ -219,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="badge" style={{ background: '#10b981', color: 'white', animation: 'pulse 2s infinite' }}>
+                <span className="badge" style={{ background: '#10b981', color: 'white' }}>
                   ● CLASE EN CURSO AHORA
                 </span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -235,19 +226,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              onClick={() => onOpenAttendance(activeAssignment)}
+              onClick={() => onSelectAssignment(activeAssignment)}
               className="btn btn-primary"
               style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
             >
-              <CheckCircle2 size={16} />
-              Pase de Lista Rápido
-            </button>
-            <button
-              onClick={() => onOpenDailyWork(activeAssignment)}
-              className="btn btn-secondary"
-            >
-              <Award size={16} color="#06b6d4" />
-              Evaluar Cotidiano
+              <Play size={16} />
+              Abrir Registro de la Clase
             </button>
           </div>
         </div>
@@ -261,16 +245,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Mis Grupos y Materias Asignadas
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Selecciona una materia para pasar lista, calificar o personalizar sus rubros de evaluación.
+              Cada tarjeta representa una asignatura. Haz clic para abrir el registro completo con sus pestañas de asistencia, cotidiano, tareas y pruebas.
             </p>
           </div>
 
           <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
-            {userAssignments.length} Asignaciones activas
+            {userAssignments.length} Asignaturas activas
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
           {userAssignments.map(asg => {
             const group = groups.find(g => g.id === asg.groupId);
             const subject = subjects.find(s => s.id === asg.subjectId);
@@ -295,8 +279,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '16px',
-                  border: '1px solid var(--border-subtle)'
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer'
                 }}
+                onClick={() => onSelectAssignment(asg)}
               >
                 {/* Card Top: Group & Subject Badge */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -311,16 +297,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </span>
                       )}
                     </div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginTop: '8px' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '8px' }}>
                       {subject?.name}
                     </h3>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       Código: {subject?.code} • {group?.specialty || 'General'}
                     </div>
                   </div>
 
                   <button
-                    onClick={() => onOpenRubricsConfig(asg)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenRubricsConfig(asg);
+                    }}
                     className="btn btn-secondary btn-sm"
                     title="Ajustar y personalizar rubros (Activar/Desactivar Portafolio, etc.)"
                     style={{ padding: '6px 10px' }}
@@ -338,7 +327,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   fontSize: '0.78rem'
                 }}>
                   <div style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    Rubros Configurados ({enabledRubrics.length} activos):
+                    Rubros Activos ({enabledRubrics.length}):
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                     {enabledRubrics.map(r => (
@@ -366,40 +355,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </span>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Primary Action Button */}
                 <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '8px',
                   marginTop: 'auto',
                   paddingTop: '12px',
                   borderTop: '1px solid var(--border-subtle)'
                 }}>
                   <button
-                    onClick={() => onOpenAttendance(asg)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '8px' }}
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'space-between' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectAssignment(asg);
+                    }}
                   >
-                    <CheckCircle2 size={14} color="#16a34a" />
-                    Asistencia
-                  </button>
-
-                  <button
-                    onClick={() => onOpenDailyWork(asg)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '8px' }}
-                  >
-                    <Award size={14} color="#06b6d4" />
-                    Cotidiano
-                  </button>
-
-                  <button
-                    onClick={() => onOpenGradebook(asg)}
-                    className="btn btn-primary btn-sm"
-                    style={{ padding: '8px' }}
-                  >
-                    <FileSpreadsheet size={14} />
-                    Sábana
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileSpreadsheet size={16} />
+                      Abrir Registro de Calificaciones
+                    </span>
+                    <ArrowRight size={16} />
                   </button>
                 </div>
               </div>

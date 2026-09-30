@@ -8,14 +8,18 @@ import type {
   TeacherAssignment,
   Student,
   EvaluationConfig,
-  ScheduleItem
+  ScheduleItem,
+  ClassSession,
+  SessionStudentDetail,
+  TaskGrade,
+  ExamGrade,
+  ProjectGrade,
+  PortfolioGrade
 } from './types';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { DirectorView } from './components/DirectorView';
-import { AttendanceModal } from './components/AttendanceModal';
-import { DailyWorkModal } from './components/DailyWorkModal';
-import { GradebookModal } from './components/GradebookModal';
+import { GroupWorkspaceView } from './components/GroupWorkspaceView';
 import { RubricsConfigModal } from './components/RubricsConfigModal';
 import { ScheduleModal } from './components/ScheduleModal';
 
@@ -34,17 +38,25 @@ export const App: React.FC = () => {
   const [evaluationConfigs, setEvaluationConfigs] = useState<EvaluationConfig[]>([]);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
 
+  // Detailed grading records matching Excel 12-1.xlsm
+  const [sessions, setSessions] = useState<ClassSession[]>([]);
+  const [sessionDetails, setSessionDetails] = useState<SessionStudentDetail[]>([]);
+  const [taskGrades, setTaskGrades] = useState<TaskGrade[]>([]);
+  const [examGrades, setExamGrades] = useState<ExamGrade[]>([]);
+  const [projectGrades, setProjectGrades] = useState<ProjectGrade[]>([]);
+  const [portfolioGrades, setPortfolioGrades] = useState<PortfolioGrade[]>([]);
+
+  // Navigation state: which assignment is currently open (null = dashboard)
+  const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
+
   // Modal states
-  const [attendanceAssignment, setAttendanceAssignment] = useState<TeacherAssignment | null>(null);
-  const [dailyWorkAssignment, setDailyWorkAssignment] = useState<TeacherAssignment | null>(null);
-  const [gradebookAssignment, setGradebookAssignment] = useState<TeacherAssignment | null>(null);
   const [rubricsConfigAssignment, setRubricsConfigAssignment] = useState<TeacherAssignment | null>(null);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
 
   // Initialize DB and load data
   const loadAppData = async () => {
     await seedDatabaseIfEmpty();
-    const [u, inst, grps, subs, asgs, stds, configs, schs] = await Promise.all([
+    const [u, inst, grps, subs, asgs, stds, configs, schs, sess, dtl, tg, eg, pg, port] = await Promise.all([
       db.users.toArray(),
       db.institutions.toArray(),
       db.groups.toArray(),
@@ -52,7 +64,13 @@ export const App: React.FC = () => {
       db.assignments.toArray(),
       db.students.toArray(),
       db.evaluationConfigs.toArray(),
-      db.schedules.toArray()
+      db.schedules.toArray(),
+      db.classSessions.toArray(),
+      db.sessionDetails.toArray(),
+      db.taskGrades.toArray(),
+      db.examGrades.toArray(),
+      db.projectGrades.toArray(),
+      db.portfolioGrades.toArray()
     ]);
 
     setAllUsers(u);
@@ -63,6 +81,12 @@ export const App: React.FC = () => {
     setStudents(stds);
     setEvaluationConfigs(configs);
     setSchedules(schs);
+    setSessions(sess);
+    setSessionDetails(dtl);
+    setTaskGrades(tg);
+    setExamGrades(eg);
+    setProjectGrades(pg);
+    setPortfolioGrades(port);
     setLoading(false);
   };
 
@@ -118,6 +142,27 @@ export const App: React.FC = () => {
     );
   }
 
+  // Active group and subject if in group workspace
+  const activeGroup = selectedAssignment ? groups.find(g => g.id === selectedAssignment.groupId) : null;
+  const activeSubject = selectedAssignment ? subjects.find(s => s.id === selectedAssignment.subjectId) : null;
+  const activeConfig = selectedAssignment
+    ? evaluationConfigs.find(c => c.assignmentId === selectedAssignment.id) || {
+        id: `cfg-${selectedAssignment.id}`,
+        assignmentId: selectedAssignment.id,
+        periodId: 'I_PERIODO',
+        passingGrade: 70,
+        periodWeight: 50,
+        rubrics: [
+          { id: 'r-1', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5 },
+          { id: 'r-2', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25 },
+          { id: 'r-3', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10 },
+          { id: 'r-4', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45 },
+          { id: 'r-5', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15 },
+          { id: 'r-6', key: 'portafolio', label: 'Portafolio', enabled: false, percentage: 0 }
+        ]
+      }
+    : null;
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Top Header with Multi-tenant Switcher */}
@@ -126,24 +171,22 @@ export const App: React.FC = () => {
         currentInstitution={currentInstitution}
         allUsers={allUsers}
         allInstitutions={allInstitutions}
-        onSwitchUser={(id) => setCurrentUserId(id)}
+        onSwitchUser={(id) => {
+          setCurrentUserId(id);
+          setSelectedAssignment(null);
+        }}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
-        onNavigateHome={() => {
-          setAttendanceAssignment(null);
-          setDailyWorkAssignment(null);
-          setGradebookAssignment(null);
-          setRubricsConfigAssignment(null);
-        }}
+        onNavigateHome={() => setSelectedAssignment(null)}
       />
 
       {/* Main Content Area */}
       <main style={{
         flex: 1,
-        maxWidth: '1400px',
+        maxWidth: '1440px',
         width: '100%',
         margin: '0 auto',
-        padding: '28px 24px 60px'
+        padding: '24px 20px 60px'
       }}>
         {currentUser.role === 'DIRECTOR' ? (
           <DirectorView
@@ -154,9 +197,30 @@ export const App: React.FC = () => {
             teachers={institutionTeachers}
             students={students}
             evaluationConfigs={evaluationConfigs}
-            onOpenGroupGradebook={(asg) => setGradebookAssignment(asg)}
+            onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
+          />
+        ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
+          /* VISTA COMPLETA DEL GRUPO CON TODAS SUS PESTAÑAS (Estilo Excel) */
+          <GroupWorkspaceView
+            institutionName={currentInstitution.name}
+            assignment={selectedAssignment}
+            group={activeGroup}
+            subject={activeSubject}
+            teacherName={currentUser.name}
+            students={students.filter(s => s.groupId === selectedAssignment.groupId)}
+            config={activeConfig}
+            sessions={sessions.filter(s => s.assignmentId === selectedAssignment.id)}
+            sessionDetails={sessionDetails}
+            taskGrades={taskGrades.filter(t => t.assignmentId === selectedAssignment.id)}
+            examGrades={examGrades.filter(e => e.assignmentId === selectedAssignment.id)}
+            projectGrades={projectGrades.filter(p => p.assignmentId === selectedAssignment.id)}
+            portfolioGrades={portfolioGrades.filter(p => p.assignmentId === selectedAssignment.id)}
+            onBackToDashboard={() => setSelectedAssignment(null)}
+            onOpenRubricsConfig={() => setRubricsConfigAssignment(selectedAssignment)}
+            onDataChanged={loadAppData}
           />
         ) : (
+          /* PANEL INICIAL DOCENTE */
           <Dashboard
             currentUser={currentUser}
             currentInstitution={currentInstitution}
@@ -166,74 +230,14 @@ export const App: React.FC = () => {
             students={students}
             evaluationConfigs={evaluationConfigs}
             schedules={schedules}
-            onOpenAttendance={(asg) => setAttendanceAssignment(asg)}
-            onOpenDailyWork={(asg) => setDailyWorkAssignment(asg)}
-            onOpenGradebook={(asg) => setGradebookAssignment(asg)}
+            onSelectAssignment={(asg) => setSelectedAssignment(asg)}
             onOpenRubricsConfig={(asg) => setRubricsConfigAssignment(asg)}
             onOpenSchedule={() => setIsScheduleOpen(true)}
           />
         )}
       </main>
 
-      {/* Attendance Modal */}
-      {attendanceAssignment && (
-        <AttendanceModal
-          assignmentId={attendanceAssignment.id}
-          sectionCode={groups.find(g => g.id === attendanceAssignment.groupId)?.sectionCode || '12-1'}
-          subjectName={subjects.find(s => s.id === attendanceAssignment.subjectId)?.name || 'Asignatura'}
-          students={students.filter(s => s.groupId === attendanceAssignment.groupId)}
-          onClose={() => setAttendanceAssignment(null)}
-          onSaved={() => {}}
-        />
-      )}
-
-      {/* Daily Work (Indicadores) Modal */}
-      {dailyWorkAssignment && (
-        <DailyWorkModal
-          assignmentId={dailyWorkAssignment.id}
-          sectionCode={groups.find(g => g.id === dailyWorkAssignment.groupId)?.sectionCode || '12-1'}
-          subjectName={subjects.find(s => s.id === dailyWorkAssignment.subjectId)?.name || 'Asignatura'}
-          students={students.filter(s => s.groupId === dailyWorkAssignment.groupId)}
-          onClose={() => setDailyWorkAssignment(null)}
-          onSaved={() => {}}
-        />
-      )}
-
-      {/* Gradebook (Sábana de notas y exportación a Excel) Modal */}
-      {gradebookAssignment && (
-        <GradebookModal
-          institutionName={currentInstitution.name}
-          sectionCode={groups.find(g => g.id === gradebookAssignment.groupId)?.sectionCode || '12-1'}
-          subjectName={subjects.find(s => s.id === gradebookAssignment.subjectId)?.name || 'Asignatura'}
-          teacherName={currentUser.name}
-          students={students.filter(s => s.groupId === gradebookAssignment.groupId)}
-          config={
-            evaluationConfigs.find(c => c.assignmentId === gradebookAssignment.id) || {
-              id: `cfg-${gradebookAssignment.id}`,
-              assignmentId: gradebookAssignment.id,
-              periodId: 'I_PERIODO',
-              passingGrade: 70,
-              periodWeight: 50,
-              rubrics: [
-                { id: 'r-1', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5 },
-                { id: 'r-2', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25 },
-                { id: 'r-3', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10 },
-                { id: 'r-4', key: 'evaluaciones', label: 'Pruebas / Evaluaciones', enabled: true, percentage: 45 },
-                { id: 'r-5', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15 },
-                { id: 'r-6', key: 'portafolio', label: 'Portafolio', enabled: false, percentage: 0 }
-              ]
-            }
-          }
-          onOpenRubricsConfig={() => {
-            const asg = gradebookAssignment;
-            setGradebookAssignment(null);
-            setRubricsConfigAssignment(asg);
-          }}
-          onClose={() => setGradebookAssignment(null)}
-        />
-      )}
-
-      {/* Rubrics Config (Activar / Desactivar Rubros y Ajustar Ponderaciones) Modal */}
+      {/* Rubrics Config Modal */}
       {rubricsConfigAssignment && (
         <RubricsConfigModal
           config={
@@ -247,7 +251,7 @@ export const App: React.FC = () => {
                 { id: 'r-1', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Asistencia a lecciones' },
                 { id: 'r-2', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Desempeño en clase' },
                 { id: 'r-3', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: 'Trabajos extraclase' },
-                { id: 'r-4', key: 'evaluaciones', label: 'Pruebas / Evaluaciones', enabled: true, percentage: 45, description: 'Exámenes' },
+                { id: 'r-4', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Exámenes' },
                 { id: 'r-5', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15, description: 'Proyectos técnicos' },
                 { id: 'r-6', key: 'portafolio', label: 'Portafolio de Evidencias', enabled: false, percentage: 0, description: 'Opcional según materia' }
               ]
@@ -271,7 +275,7 @@ export const App: React.FC = () => {
           onClose={() => setIsScheduleOpen(false)}
           onStartEvaluatingClass={(asgId) => {
             const found = assignments.find(a => a.id === asgId);
-            if (found) setAttendanceAssignment(found);
+            if (found) setSelectedAssignment(found);
           }}
           onRefreshSchedules={async () => {
             const schs = await db.schedules.toArray();
