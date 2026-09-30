@@ -63,6 +63,8 @@ export interface RubricSubItemDef {
   number: number;
   title: string;
   percentage: number;
+  totalPoints?: number; // Puntos totales (ej. 100 o 45 puntos)
+  scoringMode?: 'PERCENTAGE' | 'POINTS';
 }
 
 export interface EvaluationConfig {
@@ -72,7 +74,6 @@ export interface EvaluationConfig {
   passingGrade: number; // e.g. 70 o 80
   periodWeight: number; // e.g. 50%
   rubrics: EvaluationRubricItem[];
-  // Sub-items dinámicos
   taskDefinitions: RubricSubItemDef[];
   examDefinitions: RubricSubItemDef[];
   projectDefinitions: RubricSubItemDef[];
@@ -102,7 +103,7 @@ export interface LearningIndicator {
   id: string;
   assignmentId: string;
   code: string; // e.g. "IND-01", "L-01"
-  skillArea?: string; // e.g. "Listening", "Reading", "Spoken Interaction", "Writing"
+  skillArea: string; // Manual / editable para cualquier docente
   description: string; // Aprendizaje o indicador general del planeamiento
   initialLevelDesc?: string;
   intermediateLevelDesc?: string;
@@ -116,7 +117,7 @@ export interface ClassSession {
   date: string; // YYYY-MM-DD
   lessonsCount: number; // Cantidad de lecciones (ej: 2, 3 o 4 lecciones)
   topic?: string;
-  indicatorId?: string; // Ligado al planeamiento docente / indicador del Excel
+  indicatorId?: string; // Ligado al planeamiento docente
 }
 
 export interface SessionStudentDetail {
@@ -135,6 +136,7 @@ export interface TaskGrade {
   taskId: string;
   taskNumber: number;
   percentageEarned: number;
+  pointsEarned?: number;
 }
 
 export interface ExamGrade {
@@ -145,6 +147,7 @@ export interface ExamGrade {
   examId: string;
   examNumber: number;
   percentageEarned: number;
+  pointsEarned?: number;
 }
 
 export interface ProjectGrade {
@@ -155,6 +158,7 @@ export interface ProjectGrade {
   projectId: string;
   projectNumber: number;
   percentageEarned: number;
+  pointsEarned?: number;
 }
 
 export interface PortfolioGrade {
@@ -163,6 +167,7 @@ export interface PortfolioGrade {
   studentId: string;
   periodId: 'I_PERIODO' | 'II_PERIODO';
   percentageEarned: number;
+  pointsEarned?: number;
 }
 
 export interface ScheduleItem {

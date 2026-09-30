@@ -19,8 +19,9 @@ import {
   Sparkles,
   Search,
   BookOpen,
-  Info,
-  AlertTriangle
+  Calculator,
+  Percent,
+  Hash
 } from 'lucide-react';
 import type {
   Group,
@@ -95,6 +96,9 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
 
+  // Modo de ingreso: 'POINTS' (Nota / Puntos) o 'PERCENTAGE' (Porcentaje)
+  const [scoringInputMode, setScoringInputMode] = useState<'POINTS' | 'PERCENTAGE'>('POINTS');
+
   // Modal para agregar una nueva sesión/clase
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
   const [newSessionDate, setNewSessionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -102,10 +106,10 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   const [newSessionTopic, setNewSessionTopic] = useState('');
   const [newSessionIndicatorId, setNewSessionIndicatorId] = useState<string>(indicators[0]?.id || '');
 
-  // Modal para nuevo indicador de planeamiento
+  // Modal para nuevo indicador de planeamiento (Habilidad / Área 100% manual)
   const [showAddIndicatorModal, setShowAddIndicatorModal] = useState(false);
   const [newIndCode, setNewIndCode] = useState(`IND-0${indicators.length + 1}`);
-  const [newIndSkill, setNewIndSkill] = useState('Listening');
+  const [newIndSkill, setNewIndSkill] = useState('');
   const [newIndDesc, setNewIndDesc] = useState('');
   const [newIndL1, setNewIndL1] = useState('');
   const [newIndL2, setNewIndL2] = useState('');
@@ -115,6 +119,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   const [showAddItemModal, setShowAddItemModal] = useState<'TAREA' | 'EVALUACION' | 'PROYECTO' | null>(null);
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPercentage, setNewItemPercentage] = useState<number>(5);
+  const [newItemTotalPoints, setNewItemTotalPoints] = useState<number>(100);
 
   // Calcular todas las notas con la fórmula oficial del MEP
   const calculatedStudents: StudentCalculatedGrades[] = students.map(st =>
@@ -178,7 +183,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
     onDataChanged();
   };
 
-  // Crear nuevo indicador de planeamiento
+  // Crear nuevo indicador con habilidad/área manual
   const handleCreateIndicator = async () => {
     if (!newIndDesc.trim()) return;
 
@@ -186,7 +191,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
       id: `ind-${Date.now()}`,
       assignmentId: assignment.id,
       code: newIndCode.trim() || `IND-0${indicators.length + 1}`,
-      skillArea: newIndSkill,
+      skillArea: newIndSkill.trim() || 'General / Competencia',
       description: newIndDesc.trim(),
       initialLevelDesc: newIndL1.trim() || 'Desempeño con apoyo.',
       intermediateLevelDesc: newIndL2.trim() || 'Desempeño autónomo básico.',
@@ -196,9 +201,17 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
     await db.indicators.add(newInd);
     setShowAddIndicatorModal(false);
     setNewIndDesc('');
+    setNewIndSkill('');
     setNewIndL1('');
     setNewIndL2('');
     setNewIndL3('');
+    onDataChanged();
+  };
+
+  // Eliminar un indicador
+  const handleDeleteIndicator = async (indId: string) => {
+    if (!confirm('¿Deseas eliminar este indicador del planeamiento?')) return;
+    await db.indicators.delete(indId);
     onDataChanged();
   };
 
@@ -223,7 +236,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
     onDataChanged();
   };
 
-  // Agregar sub-ítem respetando el tope de porcentaje
+  // Agregar sub-ítem con puntos totales y valor porcentual
   const handleAddSubItem = async () => {
     if (!newItemTitle.trim()) return;
 
@@ -237,7 +250,8 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         id: `tdef-${Date.now()}`,
         number: (config.taskDefinitions || []).length + 1,
         title: newItemTitle.trim(),
-        percentage: newItemPercentage
+        percentage: newItemPercentage,
+        totalPoints: newItemTotalPoints || 100
       };
       const updated = {
         ...config,
@@ -254,7 +268,8 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         id: `edef-${Date.now()}`,
         number: (config.examDefinitions || []).length + 1,
         title: newItemTitle.trim(),
-        percentage: newItemPercentage
+        percentage: newItemPercentage,
+        totalPoints: newItemTotalPoints || 100
       };
       const updated = {
         ...config,
@@ -271,7 +286,8 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         id: `pdef-${Date.now()}`,
         number: (config.projectDefinitions || []).length + 1,
         title: newItemTitle.trim(),
-        percentage: newItemPercentage
+        percentage: newItemPercentage,
+        totalPoints: newItemTotalPoints || 100
       };
       const updated = {
         ...config,
@@ -285,56 +301,161 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
     onDataChanged();
   };
 
-  // Actualizar notas de sub-items
-  const handleUpdateTaskGrade = async (studentId: string, taskId: string, taskNumber: number, value: number) => {
-    const existing = taskGrades.find(t => t.assignmentId === assignment.id && t.studentId === studentId && (t.taskId === taskId || t.taskNumber === taskNumber));
+  // ELIMINAR SUB-ÍTEMS (Permite quitar tareas o evaluaciones para liberar porcentaje y crear nuevas)
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('¿Deseas eliminar esta tarea? Se liberará su porcentaje y se borrarán sus notas.')) return;
+    const updatedTasks = (config.taskDefinitions || []).filter(t => t.id !== taskId);
+    await db.evaluationConfigs.put({ ...config, taskDefinitions: updatedTasks });
+    const gradesToDelete = await db.taskGrades.where('assignmentId').equals(assignment.id).filter(t => t.taskId === taskId).toArray();
+    if (gradesToDelete.length > 0) {
+      await db.taskGrades.bulkDelete(gradesToDelete.map(g => g.id));
+    }
+    onDataChanged();
+  };
+
+  const handleDeleteExam = async (examId: string) => {
+    if (!confirm('¿Deseas eliminar esta evaluación? Se liberará su porcentaje y se borrarán sus notas.')) return;
+    const updatedExams = (config.examDefinitions || []).filter(e => e.id !== examId);
+    await db.evaluationConfigs.put({ ...config, examDefinitions: updatedExams });
+    const gradesToDelete = await db.examGrades.where('assignmentId').equals(assignment.id).filter(e => e.examId === examId).toArray();
+    if (gradesToDelete.length > 0) {
+      await db.examGrades.bulkDelete(gradesToDelete.map(g => g.id));
+    }
+    onDataChanged();
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('¿Deseas eliminar este proyecto? Se liberará su porcentaje.')) return;
+    const updated = (config.projectDefinitions || []).filter(p => p.id !== projectId);
+    await db.evaluationConfigs.put({ ...config, projectDefinitions: updated });
+    const gradesToDelete = await db.projectGrades.where('assignmentId').equals(assignment.id).filter(p => p.projectId === projectId).toArray();
+    if (gradesToDelete.length > 0) {
+      await db.projectGrades.bulkDelete(gradesToDelete.map(g => g.id));
+    }
+    onDataChanged();
+  };
+
+  // Conversión bidireccional Nota <-> Porcentaje
+  // Pts = (Pct / ItemPct) * ItemTotalPts
+  // Pct = (Pts / ItemTotalPts) * ItemPct
+  const handleUpdateTaskByPointsOrPct = async (
+    studentId: string,
+    tDef: RubricSubItemDef,
+    inputValue: number,
+    isPointsInput: boolean
+  ) => {
+    const totalPts = tDef.totalPoints || 100;
+    const maxPct = tDef.percentage;
+
+    let finalPct = 0;
+    let finalPts = 0;
+
+    if (isPointsInput) {
+      finalPts = Math.min(totalPts, Math.max(0, inputValue));
+      finalPct = totalPts > 0 ? (finalPts / totalPts) * maxPct : 0;
+    } else {
+      finalPct = Math.min(maxPct, Math.max(0, inputValue));
+      finalPts = maxPct > 0 ? (finalPct / maxPct) * totalPts : 0;
+    }
+
+    finalPct = Number(finalPct.toFixed(2));
+    finalPts = Number(finalPts.toFixed(1));
+
+    const existing = taskGrades.find(g => g.assignmentId === assignment.id && g.studentId === studentId && (g.taskId === tDef.id || g.taskNumber === tDef.number));
     if (existing) {
-      await db.taskGrades.update(existing.id, { percentageEarned: value, taskId });
+      await db.taskGrades.update(existing.id, { percentageEarned: finalPct, pointsEarned: finalPts, taskId: tDef.id });
     } else {
       await db.taskGrades.add({
-        id: `tg-${studentId}-${taskId}`,
+        id: `tg-${studentId}-${tDef.id}`,
         assignmentId: assignment.id,
         studentId,
         periodId: 'I_PERIODO',
-        taskId,
-        taskNumber,
-        percentageEarned: value
+        taskId: tDef.id,
+        taskNumber: tDef.number,
+        percentageEarned: finalPct,
+        pointsEarned: finalPts
       });
     }
     onDataChanged();
   };
 
-  const handleUpdateExamGrade = async (studentId: string, examId: string, examNumber: number, value: number) => {
-    const existing = examGrades.find(e => e.assignmentId === assignment.id && e.studentId === studentId && (e.examId === examId || e.examNumber === examNumber));
+  const handleUpdateExamByPointsOrPct = async (
+    studentId: string,
+    eDef: RubricSubItemDef,
+    inputValue: number,
+    isPointsInput: boolean
+  ) => {
+    const totalPts = eDef.totalPoints || 100;
+    const maxPct = eDef.percentage;
+
+    let finalPct = 0;
+    let finalPts = 0;
+
+    if (isPointsInput) {
+      finalPts = Math.min(totalPts, Math.max(0, inputValue));
+      finalPct = totalPts > 0 ? (finalPts / totalPts) * maxPct : 0;
+    } else {
+      finalPct = Math.min(maxPct, Math.max(0, inputValue));
+      finalPts = maxPct > 0 ? (finalPct / maxPct) * totalPts : 0;
+    }
+
+    finalPct = Number(finalPct.toFixed(2));
+    finalPts = Number(finalPts.toFixed(1));
+
+    const existing = examGrades.find(g => g.assignmentId === assignment.id && g.studentId === studentId && (g.examId === eDef.id || g.examNumber === eDef.number));
     if (existing) {
-      await db.examGrades.update(existing.id, { percentageEarned: value, examId });
+      await db.examGrades.update(existing.id, { percentageEarned: finalPct, pointsEarned: finalPts, examId: eDef.id });
     } else {
       await db.examGrades.add({
-        id: `eg-${studentId}-${examId}`,
+        id: `eg-${studentId}-${eDef.id}`,
         assignmentId: assignment.id,
         studentId,
         periodId: 'I_PERIODO',
-        examId,
-        examNumber,
-        percentageEarned: value
+        examId: eDef.id,
+        examNumber: eDef.number,
+        percentageEarned: finalPct,
+        pointsEarned: finalPts
       });
     }
     onDataChanged();
   };
 
-  const handleUpdateProjectGrade = async (studentId: string, projectId: string, projectNumber: number, value: number) => {
-    const existing = projectGrades.find(p => p.assignmentId === assignment.id && p.studentId === studentId && (p.projectId === projectId || p.projectNumber === projectNumber));
+  const handleUpdateProjectByPointsOrPct = async (
+    studentId: string,
+    pDef: RubricSubItemDef,
+    inputValue: number,
+    isPointsInput: boolean
+  ) => {
+    const totalPts = pDef.totalPoints || 100;
+    const maxPct = pDef.percentage;
+
+    let finalPct = 0;
+    let finalPts = 0;
+
+    if (isPointsInput) {
+      finalPts = Math.min(totalPts, Math.max(0, inputValue));
+      finalPct = totalPts > 0 ? (finalPts / totalPts) * maxPct : 0;
+    } else {
+      finalPct = Math.min(maxPct, Math.max(0, inputValue));
+      finalPts = maxPct > 0 ? (finalPct / maxPct) * totalPts : 0;
+    }
+
+    finalPct = Number(finalPct.toFixed(2));
+    finalPts = Number(finalPts.toFixed(1));
+
+    const existing = projectGrades.find(g => g.assignmentId === assignment.id && g.studentId === studentId && (g.projectId === pDef.id || g.projectNumber === pDef.number));
     if (existing) {
-      await db.projectGrades.update(existing.id, { percentageEarned: value, projectId });
+      await db.projectGrades.update(existing.id, { percentageEarned: finalPct, pointsEarned: finalPts, projectId: pDef.id });
     } else {
       await db.projectGrades.add({
-        id: `pg-${studentId}-${projectId}`,
+        id: `pg-${studentId}-${pDef.id}`,
         assignmentId: assignment.id,
         studentId,
         periodId: 'I_PERIODO',
-        projectId,
-        projectNumber,
-        percentageEarned: value
+        projectId: pDef.id,
+        projectNumber: pDef.number,
+        percentageEarned: finalPct,
+        pointsEarned: finalPts
       });
     }
     onDataChanged();
@@ -408,7 +529,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         </div>
       </div>
 
-      {/* Navigation Menu Tabs: Now with ASISTENCIA and COTIDIANO separated, plus INDICADORES tab */}
+      {/* Navigation Menu Tabs: ASISTENCIA y COTIDIANO separados + INDICADORES */}
       <div style={{
         display: 'flex',
         background: 'var(--bg-surface)',
@@ -629,7 +750,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
       )}
 
       {/* ========================================================
-          TAB 2: ASISTENCIA (CON COLUMNAS FIJAS / STICKY AL HACER SCROLL)
+          TAB 2: ASISTENCIA (CON COLUMNAS FIJAS / STICKY EN SCROLL)
          ======================================================== */}
       {activeTab === 'ASISTENCIA' && (
         <div className="glass-panel" style={{ overflow: 'hidden' }}>
@@ -651,7 +772,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 </h3>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Columnas de estudiantes fijadas a la izquierda para fácil visualización durante el scroll horizontal.
+                Columnas fijadas a la izquierda: desplaza hacia la derecha para registrar clases pasadas o nuevas.
               </p>
             </div>
 
@@ -665,7 +786,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', fontSize: '0.82rem' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
-                  {/* Columnas FIJAS en la cabecera */}
                   <th style={{
                     position: 'sticky',
                     left: 0,
@@ -722,7 +842,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                   <th style={{ padding: '10px', textAlign: 'center', background: 'rgba(99, 102, 241, 0.08)', borderBottom: '2px solid var(--border-subtle)' }}>T</th>
                   <th style={{ padding: '10px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.08)', borderBottom: '2px solid var(--border-subtle)' }}>AJ</th>
 
-                  {/* Fechas dinámicas de clase que hacen scroll */}
+                  {/* Fechas de clase con scroll horizontal */}
                   {sessions.map(sess => (
                     <th key={sess.id} style={{
                       padding: '8px 12px',
@@ -740,8 +860,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               </thead>
               <tbody>
                 {filteredList.map((item, idx) => (
-                  <tr key={item.studentId} style={{ transition: 'background 0.15s ease' }}>
-                    {/* Columnas FIJAS en el cuerpo */}
+                  <tr key={item.studentId}>
                     <td style={{
                       position: 'sticky',
                       left: 0,
@@ -797,13 +916,11 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       {item.asistenciaPts}%
                     </td>
 
-                    {/* Resumen Faltas */}
                     <td style={{ padding: '8px', textAlign: 'center', color: '#dc2626', fontWeight: 700, borderBottom: '1px solid var(--border-subtle)' }}>{item.unexcusedAbsences}</td>
                     <td style={{ padding: '8px', textAlign: 'center', color: '#d97706', fontWeight: 700, borderBottom: '1px solid var(--border-subtle)' }}>{item.lessonEscapes}</td>
                     <td style={{ padding: '8px', textAlign: 'center', color: '#4f46e5', fontWeight: 700, borderBottom: '1px solid var(--border-subtle)' }}>{item.tardies}</td>
                     <td style={{ padding: '8px', textAlign: 'center', color: '#16a34a', fontWeight: 700, borderBottom: '1px solid var(--border-subtle)' }}>{item.excusedAbsences}</td>
 
-                    {/* Celdas con scroll para cada sesión */}
                     {sessions.map(sess => {
                       const det = sessionDetails.find(d => d.sessionId === sess.id && d.studentId === item.studentId) || {
                         attendance: 'PRESENT',
@@ -892,7 +1009,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                   </th>
                   <th style={{ padding: '10px', textAlign: 'center' }}>Ptos Obtenidos</th>
 
-                  {/* Sesiones con indicador asociado */}
                   {sessions.map(sess => {
                     const ind = indicators.find(i => i.id === sess.indicatorId);
 
@@ -925,7 +1041,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       {item.puntosCotidianoObtenidos} / {item.totalLessons}
                     </td>
 
-                    {/* Selector de nivel por clase */}
                     {sessions.map(sess => {
                       const det = sessionDetails.find(d => d.sessionId === sess.id && d.studentId === item.studentId) || {
                         attendance: 'PRESENT',
@@ -965,7 +1080,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
       )}
 
       {/* ========================================================
-          TAB 4: INDICADORES / PLANEAMIENTO DOCENTE (Hoja Indicadores del Excel)
+          TAB 4: INDICADORES / PLANEAMIENTO (HABILIDAD/ÁREA 100% MANUAL)
          ======================================================== */}
       {activeTab === 'INDICADORES' && (
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -978,7 +1093,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 </h3>
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Estos indicadores provienen de la hoja "Indicadores" de tu Excel y se ligan a las clases de trabajo cotidiano.
+                Personaliza las áreas o habilidades según tu especialidad (Matemática, Ciencias, Idiomas, Talleres, etc.).
               </p>
             </div>
 
@@ -989,7 +1104,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {indicators.map((ind, idx) => (
+            {indicators.map((ind) => (
               <div
                 key={ind.id}
                 style={{
@@ -1013,13 +1128,21 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       </span>
                     )}
                   </div>
+
+                  <button
+                    onClick={() => handleDeleteIndicator(ind.id)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: '#ef4444', padding: '4px 8px' }}
+                    title="Eliminar este indicador"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
 
                 <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
                   {ind.description}
                 </div>
 
-                {/* Niveles de desempeño */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', marginTop: '6px' }}>
                   <div style={{ background: 'var(--bg-main)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>NIVEL INICIAL (1 pt - 25%)</div>
@@ -1041,7 +1164,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
       )}
 
       {/* ========================================================
-          TAB 5: TAREAS (DINÁMICAS CON CONTROL DE TOPE DE PORCENTAJE)
+          TAB 5: TAREAS (CALIFICACIÓN POR NOTA O PORCENTAJE + BORRADO)
          ======================================================== */}
       {activeTab === 'TAREAS' && (
         <div className="glass-panel" style={{ padding: '24px' }}>
@@ -1049,12 +1172,38 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             <div>
               <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Registro de Tareas</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Tope asignado al rubro de Tareas: <strong>{tareasMaxWeight}%</strong>
+                Tope máximo del rubro: <strong>{tareasMaxWeight}%</strong>
               </p>
             </div>
 
-            {/* Barra y Alerta de Porcentaje */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {/* Selector de modo de ingreso: Nota vs Porcentaje */}
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-surface)',
+                borderRadius: '8px',
+                padding: '3px',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                <button
+                  onClick={() => setScoringInputMode('POINTS')}
+                  className={`btn btn-sm ${scoringInputMode === 'POINTS' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                >
+                  <Hash size={13} />
+                  Ingresar por Nota (0-100 / Pts)
+                </button>
+                <button
+                  onClick={() => setScoringInputMode('PERCENTAGE')}
+                  className={`btn btn-sm ${scoringInputMode === 'PERCENTAGE' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                >
+                  <Percent size={13} />
+                  Ingresar por Porcentaje (%)
+                </button>
+              </div>
+
+              {/* Barra de Porcentaje */}
               <div style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
@@ -1064,13 +1213,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 fontWeight: 700,
                 color: tareasCurrentSum === tareasMaxWeight ? '#10b981' : '#d97706'
               }}>
-                Distribuido: {tareasCurrentSum}% / {tareasMaxWeight}% (Disponible: {(tareasMaxWeight - tareasCurrentSum).toFixed(1)}%)
+                Asignado: {tareasCurrentSum}% / {tareasMaxWeight}% (Disponible: {(tareasMaxWeight - tareasCurrentSum).toFixed(1)}%)
               </div>
 
               <button
                 onClick={() => {
                   setNewItemTitle(`Tarea ${(config.taskDefinitions || []).length + 1}`);
                   setNewItemPercentage(Math.max(1, tareasMaxWeight - tareasCurrentSum));
+                  setNewItemTotalPoints(100);
                   setShowAddItemModal('TAREA');
                 }}
                 disabled={tareasCurrentSum >= tareasMaxWeight}
@@ -1082,60 +1232,106 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
-                <tr>
-                  <th style={{ padding: '10px 14px' }}>#</th>
-                  <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
-                  {(config.taskDefinitions || []).map(t => (
-                    <th key={t.id} style={{ padding: '10px', textAlign: 'center' }}>
-                      <div style={{ fontWeight: 700 }}>{t.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>Valor: {t.percentage}%</div>
-                    </th>
-                  ))}
-                  <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Tareas ({tareasMaxWeight}%)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredList.map((item, idx) => (
-                  <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>
-                      {item.student.firstLastName} {item.student.firstName}
-                    </td>
-
-                    {(config.taskDefinitions || []).map(t => {
-                      const tg = taskGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.taskId === t.id || g.taskNumber === t.number))?.percentageEarned || 0;
-
-                      return (
-                        <td key={t.id} style={{ padding: '8px', textAlign: 'center' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            max={t.percentage}
-                            min={0}
-                            value={tg}
-                            onChange={(e) => handleUpdateTaskGrade(item.studentId, t.id, t.number, parseFloat(e.target.value) || 0)}
-                            style={{ width: '70px', padding: '5px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
-                          />
-                        </td>
-                      );
-                    })}
-
-                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
-                      {item.tareasPts}%
-                    </td>
+          {(config.taskDefinitions || []).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
+              <CheckSquare size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+              <div style={{ fontWeight: 700 }}>No hay tareas registradas</div>
+              <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>Tienes los {tareasMaxWeight}% del rubro disponibles. Haz clic en "+ Nueva Tarea" para crear una.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
+                  <tr>
+                    <th style={{ padding: '10px 14px' }}>#</th>
+                    <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
+                    {(config.taskDefinitions || []).map(t => (
+                      <th key={t.id} style={{ padding: '10px', textAlign: 'center', minWidth: '130px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700 }}>{t.title}</span>
+                          <button
+                            onClick={() => handleDeleteTask(t.id)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
+                            title="Eliminar esta tarea y liberar porcentaje"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>
+                          Valor: {t.percentage}% • Base: {t.totalPoints || 100} pts
+                        </div>
+                      </th>
+                    ))}
+                    <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Tareas ({tareasMaxWeight}%)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredList.map((item, idx) => (
+                    <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700 }}>
+                        {item.student.firstLastName} {item.student.firstName}
+                      </td>
+
+                      {(config.taskDefinitions || []).map(t => {
+                        const tg = taskGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.taskId === t.id || g.taskNumber === t.number));
+                        const pctVal = tg ? tg.percentageEarned : 0;
+                        const totalPts = t.totalPoints || 100;
+                        const ptsVal = tg && tg.pointsEarned !== undefined ? tg.pointsEarned : Number(((pctVal / t.percentage) * totalPts).toFixed(1));
+
+                        return (
+                          <td key={t.id} style={{ padding: '8px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                              {scoringInputMode === 'POINTS' ? (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    max={totalPts}
+                                    min={0}
+                                    value={ptsVal}
+                                    onChange={(e) => handleUpdateTaskByPointsOrPct(item.studentId, t, parseFloat(e.target.value) || 0, true)}
+                                    style={{ width: '70px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 700 }}>
+                                    = {pctVal}% / {t.percentage}%
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    max={t.percentage}
+                                    min={0}
+                                    value={pctVal}
+                                    onChange={(e) => handleUpdateTaskByPointsOrPct(item.studentId, t, parseFloat(e.target.value) || 0, false)}
+                                    style={{ width: '70px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                                    Nota: {ptsVal} / {totalPts}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
+                        {item.tareasPts}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* ========================================================
-          TAB 6: EVALUACIONES (DINÁMICAS CON TOPE DE 45%)
+          TAB 6: EVALUACIONES (CALIFICACIÓN POR NOTA O PORCENTAJE + BORRADO)
          ======================================================== */}
       {activeTab === 'EVALUACIONES' && (
         <div className="glass-panel" style={{ padding: '24px' }}>
@@ -1147,7 +1343,32 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-surface)',
+                borderRadius: '8px',
+                padding: '3px',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                <button
+                  onClick={() => setScoringInputMode('POINTS')}
+                  className={`btn btn-sm ${scoringInputMode === 'POINTS' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                >
+                  <Hash size={13} />
+                  Ingresar por Nota (0-100 / Pts)
+                </button>
+                <button
+                  onClick={() => setScoringInputMode('PERCENTAGE')}
+                  className={`btn btn-sm ${scoringInputMode === 'PERCENTAGE' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                >
+                  <Percent size={13} />
+                  Ingresar por Porcentaje (%)
+                </button>
+              </div>
+
               <div style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
@@ -1157,13 +1378,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 fontWeight: 700,
                 color: evaluacionesCurrentSum === evaluacionesMaxWeight ? '#10b981' : '#d97706'
               }}>
-                Distribuido: {evaluacionesCurrentSum}% / {evaluacionesMaxWeight}% (Disponible: {(evaluacionesMaxWeight - evaluacionesCurrentSum).toFixed(1)}%)
+                Asignado: {evaluacionesCurrentSum}% / {evaluacionesMaxWeight}% (Disponible: {(evaluacionesMaxWeight - evaluacionesCurrentSum).toFixed(1)}%)
               </div>
 
               <button
                 onClick={() => {
                   setNewItemTitle(`Evaluación ${(config.examDefinitions || []).length + 1}`);
                   setNewItemPercentage(Math.max(1, evaluacionesMaxWeight - evaluacionesCurrentSum));
+                  setNewItemTotalPoints(100);
                   setShowAddItemModal('EVALUACION');
                 }}
                 disabled={evaluacionesCurrentSum >= evaluacionesMaxWeight}
@@ -1175,60 +1397,106 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
-                <tr>
-                  <th style={{ padding: '10px 14px' }}>#</th>
-                  <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
-                  {(config.examDefinitions || []).map(e => (
-                    <th key={e.id} style={{ padding: '10px', textAlign: 'center' }}>
-                      <div style={{ fontWeight: 700 }}>{e.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>Valor: {e.percentage}%</div>
-                    </th>
-                  ))}
-                  <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Evaluaciones ({evaluacionesMaxWeight}%)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredList.map((item, idx) => (
-                  <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>
-                      {item.student.firstLastName} {item.student.firstName}
-                    </td>
-
-                    {(config.examDefinitions || []).map(e => {
-                      const eg = examGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.examId === e.id || g.examNumber === e.number))?.percentageEarned || 0;
-
-                      return (
-                        <td key={e.id} style={{ padding: '8px', textAlign: 'center' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            max={e.percentage}
-                            min={0}
-                            value={eg}
-                            onChange={(ev) => handleUpdateExamGrade(item.studentId, e.id, e.number, parseFloat(ev.target.value) || 0)}
-                            style={{ width: '75px', padding: '5px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
-                          />
-                        </td>
-                      );
-                    })}
-
-                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
-                      {item.evaluacionesPts}%
-                    </td>
+          {(config.examDefinitions || []).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
+              <FileText size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+              <div style={{ fontWeight: 700 }}>No hay evaluaciones registradas</div>
+              <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>Tienes los {evaluacionesMaxWeight}% del rubro disponibles. Haz clic en "+ Nueva Evaluación" para crear una.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
+                  <tr>
+                    <th style={{ padding: '10px 14px' }}>#</th>
+                    <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
+                    {(config.examDefinitions || []).map(e => (
+                      <th key={e.id} style={{ padding: '10px', textAlign: 'center', minWidth: '140px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700 }}>{e.title}</span>
+                          <button
+                            onClick={() => handleDeleteExam(e.id)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
+                            title="Eliminar esta evaluación y liberar porcentaje"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>
+                          Valor: {e.percentage}% • Base: {e.totalPoints || 100} pts
+                        </div>
+                      </th>
+                    ))}
+                    <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Evaluaciones ({evaluacionesMaxWeight}%)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredList.map((item, idx) => (
+                    <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700 }}>
+                        {item.student.firstLastName} {item.student.firstName}
+                      </td>
+
+                      {(config.examDefinitions || []).map(e => {
+                        const eg = examGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.examId === e.id || g.examNumber === e.number));
+                        const pctVal = eg ? eg.percentageEarned : 0;
+                        const totalPts = e.totalPoints || 100;
+                        const ptsVal = eg && eg.pointsEarned !== undefined ? eg.pointsEarned : Number(((pctVal / e.percentage) * totalPts).toFixed(1));
+
+                        return (
+                          <td key={e.id} style={{ padding: '8px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                              {scoringInputMode === 'POINTS' ? (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    max={totalPts}
+                                    min={0}
+                                    value={ptsVal}
+                                    onChange={(ev) => handleUpdateExamByPointsOrPct(item.studentId, e, parseFloat(ev.target.value) || 0, true)}
+                                    style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 700 }}>
+                                    = {pctVal}% / {e.percentage}%
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    max={e.percentage}
+                                    min={0}
+                                    value={pctVal}
+                                    onChange={(ev) => handleUpdateExamByPointsOrPct(item.studentId, e, parseFloat(ev.target.value) || 0, false)}
+                                    style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                                    Nota: {ptsVal} / {totalPts}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
+                        {item.evaluacionesPts}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* ========================================================
-          TAB 7: PROYECTOS (DINÁMICOS CON TOPE DE 15%)
+          TAB 7: PROYECTOS (CALIFICACIÓN BIDIRECCIONAL + BORRADO)
          ======================================================== */}
       {activeTab === 'PROYECTOS' && (
         <div className="glass-panel" style={{ padding: '24px' }}>
@@ -1240,7 +1508,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
@@ -1250,13 +1518,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 fontWeight: 700,
                 color: proyectosCurrentSum === proyectosMaxWeight ? '#10b981' : '#d97706'
               }}>
-                Distribuido: {proyectosCurrentSum}% / {proyectosMaxWeight}%
+                Asignado: {proyectosCurrentSum}% / {proyectosMaxWeight}%
               </div>
 
               <button
                 onClick={() => {
-                  setNewItemTitle(`Etapa ${(config.projectDefinitions || []).length + 1}`);
+                  setNewItemTitle(`Proyecto ${(config.projectDefinitions || []).length + 1}`);
                   setNewItemPercentage(Math.max(1, proyectosMaxWeight - proyectosCurrentSum));
+                  setNewItemTotalPoints(100);
                   setShowAddItemModal('PROYECTO');
                 }}
                 disabled={proyectosCurrentSum >= proyectosMaxWeight}
@@ -1268,60 +1537,116 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
-                <tr>
-                  <th style={{ padding: '10px 14px' }}>#</th>
-                  <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
-                  {(config.projectDefinitions || []).map(p => (
-                    <th key={p.id} style={{ padding: '10px', textAlign: 'center' }}>
-                      <div style={{ fontWeight: 700 }}>{p.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>Valor: {p.percentage}%</div>
-                    </th>
-                  ))}
-                  <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Proyectos ({proyectosMaxWeight}%)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredList.map((item, idx) => (
-                  <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>
-                      {item.student.firstLastName} {item.student.firstName}
-                    </td>
-
-                    {(config.projectDefinitions || []).map(p => {
-                      const pg = projectGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.projectId === p.id || g.projectNumber === p.number))?.percentageEarned || 0;
-
-                      return (
-                        <td key={p.id} style={{ padding: '8px', textAlign: 'center' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            max={p.percentage}
-                            min={0}
-                            value={pg}
-                            onChange={(ev) => handleUpdateProjectGrade(item.studentId, p.id, p.number, parseFloat(ev.target.value) || 0)}
-                            style={{ width: '75px', padding: '5px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
-                          />
-                        </td>
-                      );
-                    })}
-
-                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
-                      {item.proyectosPts}%
-                    </td>
+          {(config.projectDefinitions || []).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
+              <FolderGit2 size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+              <div style={{ fontWeight: 700 }}>No hay proyectos registrados</div>
+              <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>Tienes los {proyectosMaxWeight}% del rubro disponibles.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
+                  <tr>
+                    <th style={{ padding: '10px 14px' }}>#</th>
+                    <th style={{ padding: '10px 14px', minWidth: '180px' }}>Estudiante</th>
+                    {(config.projectDefinitions || []).map(p => (
+                      <th key={p.id} style={{ padding: '10px', textAlign: 'center', minWidth: '140px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700 }}>{p.title}</span>
+                          <button
+                            onClick={() => handleDeleteProject(p.id)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
+                            title="Eliminar este proyecto y liberar porcentaje"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: 800 }}>Valor: {p.percentage}% • Base: {p.totalPoints || 100} pts</div>
+                      </th>
+                    ))}
+                    <th style={{ padding: '10px', textAlign: 'center', fontWeight: 800, color: '#4f46e5' }}>Total Proyectos ({proyectosMaxWeight}%)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredList.map((item, idx) => (
+                    <tr key={item.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700 }}>
+                        {item.student.firstLastName} {item.student.firstName}
+                      </td>
+
+                      {(config.projectDefinitions || []).map(p => {
+                        const pg = projectGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.projectId === p.id || g.projectNumber === p.number));
+                        const pctVal = pg ? pg.percentageEarned : 0;
+                        const totalPts = p.totalPoints || 100;
+                        const ptsVal = pg && pg.pointsEarned !== undefined ? pg.pointsEarned : Number(((pctVal / p.percentage) * totalPts).toFixed(1));
+
+                        return (
+                          <td key={p.id} style={{ padding: '8px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                              {scoringInputMode === 'POINTS' ? (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    max={totalPts}
+                                    min={0}
+                                    value={ptsVal}
+                                    onChange={(ev) => handleUpdateProjectByPointsOrPct(item.studentId, p, parseFloat(ev.target.value) || 0, true)}
+                                    style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 700 }}>
+                                    = {pctVal}% / {p.percentage}%
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    max={p.percentage}
+                                    min={0}
+                                    value={pctVal}
+                                    onChange={(ev) => handleUpdateProjectByPointsOrPct(item.studentId, p, parseFloat(ev.target.value) || 0, false)}
+                                    style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
+                                  />
+                                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                                    Nota: {ptsVal} / {totalPts}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#4f46e5' }}>
+                        {item.proyectosPts}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* ========================================================
-          TAB 8: EXPEDIENTE INDIVIDUAL POR ESTUDIANTE
+          TAB 8: PORTAFOLIO
+         ======================================================== */}
+      {activeTab === 'PORTAFOLIO' && isPortafolioEnabled && (
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '8px' }}>Portafolio de Evidencias</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Valor asignado: {config.rubrics.find(r => r.key === 'portafolio')?.percentage}%
+          </p>
+        </div>
+      )}
+
+      {/* ========================================================
+          TAB 9: EXPEDIENTE INDIVIDUAL POR ESTUDIANTE
          ======================================================== */}
       {activeTab === 'INDIVIDUAL' && selectedStudentComputed && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 320px) 1fr', gap: '20px' }}>
@@ -1534,7 +1859,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         </div>
       )}
 
-      {/* Modal para crear nuevo indicador de planeamiento */}
+      {/* Modal para crear nuevo indicador (Habilidad/Área MANUAL) */}
       {showAddIndicatorModal && (
         <div style={{
           position: 'fixed',
@@ -1560,25 +1885,34 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Código:</label>
                 <input
                   type="text"
+                  placeholder="IND-01, MAT-1..."
                   value={newIndCode}
                   onChange={(e) => setNewIndCode(e.target.value)}
                   style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Habilidad / Área:</label>
-                <select
+                <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Habilidad / Área (Manual):</label>
+                <input
+                  type="text"
+                  list="skillsList"
+                  placeholder="Ej. Álgebra, Comprensión Lectora, Taller, Listening..."
                   value={newIndSkill}
                   onChange={(e) => setNewIndSkill(e.target.value)}
                   style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
-                >
-                  <option value="Listening">Listening</option>
-                  <option value="Reading">Reading</option>
-                  <option value="Spoken Interaction">Spoken Interaction</option>
-                  <option value="Spoken Production">Spoken Production</option>
-                  <option value="Writing">Writing</option>
-                  <option value="Técnica / Procedimental">Técnica / Procedimental</option>
-                </select>
+                />
+                <datalist id="skillsList">
+                  <option value="Comprensión Lectora" />
+                  <option value="Expresión Escrita" />
+                  <option value="Resolución de Problemas" />
+                  <option value="Álgebra y Geometría" />
+                  <option value="Indagación Científica" />
+                  <option value="Procedimientos de Taller" />
+                  <option value="Listening" />
+                  <option value="Reading" />
+                  <option value="Spoken Interaction" />
+                  <option value="Writing" />
+                </datalist>
               </div>
             </div>
 
@@ -1586,7 +1920,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               <label style={{ fontSize: '0.75rem', fontWeight: 700 }}>Descripción del Aprendizaje Esperado:</label>
               <textarea
                 rows={2}
-                placeholder="Ej. Reconoce términos técnicos de mercadeo en lecturas comprensivas..."
+                placeholder="Ej. Aplica fórmulas y procedimientos para la resolución de situaciones del entorno..."
                 value={newIndDesc}
                 onChange={(e) => setNewIndDesc(e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontSize: '0.85rem' }}
@@ -1638,7 +1972,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
         </div>
       )}
 
-      {/* Modal para agregar sub-ítem con control de tope (Tareas, Evaluaciones, Proyectos) */}
+      {/* Modal para agregar sub-ítem con Valor Porcentual Y Puntos Totales */}
       {showAddItemModal && (
         <div style={{
           position: 'fixed',
@@ -1654,7 +1988,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
           zIndex: 100,
           padding: '20px'
         }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
               + Agregar {showAddItemModal === 'TAREA' ? 'Nueva Tarea' : showAddItemModal === 'EVALUACION' ? 'Nueva Evaluación' : 'Nuevo Proyecto'}
             </h3>
@@ -1690,20 +2024,40 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
-                Valor Porcentual (%):
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0.5"
-                max={showAddItemModal === 'TAREA' ? tareasMaxWeight - tareasCurrentSum : showAddItemModal === 'EVALUACION' ? evaluacionesMaxWeight - evaluacionesCurrentSum : proyectosMaxWeight - proyectosCurrentSum}
-                value={newItemPercentage}
-                onChange={(e) => setNewItemPercentage(parseFloat(e.target.value) || 0)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 700 }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                  Valor Porcentual (%):
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max={showAddItemModal === 'TAREA' ? tareasMaxWeight - tareasCurrentSum : showAddItemModal === 'EVALUACION' ? evaluacionesMaxWeight - evaluacionesCurrentSum : proyectosMaxWeight - proyectosCurrentSum}
+                  value={newItemPercentage}
+                  onChange={(e) => setNewItemPercentage(parseFloat(e.target.value) || 0)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 700 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                  Puntos Totales / Base Nota:
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={newItemTotalPoints}
+                  onChange={(e) => setNewItemTotalPoints(parseInt(e.target.value) || 100)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 700 }}
+                />
+              </div>
             </div>
+
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Podrás calificar digitando la <strong>nota/puntos</strong> o digitando el <strong>porcentaje directo</strong>. El sistema convertirá el valor automáticamente.
+            </p>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
               <button onClick={() => setShowAddItemModal(null)} className="btn btn-secondary">
