@@ -198,10 +198,10 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main style={{
         flex: 1,
-        maxWidth: '1440px',
+        maxWidth: selectedAssignment ? '100%' : '1440px',
         width: '100%',
         margin: '0 auto',
-        padding: '24px 20px 60px'
+        padding: selectedAssignment ? '14px 16px 60px' : '24px 20px 60px'
       }}>
         {currentUser.role === 'DIRECTOR' ? (
           <DirectorView

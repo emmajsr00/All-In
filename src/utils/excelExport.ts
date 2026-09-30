@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import type { Student, EvaluationConfig } from '../types';
+import type { Student, EvaluationConfig, ClassSession, SessionStudentDetail } from '../types';
+import type { StudentCalculatedGrades } from './gradeCalculations';
 
 export function exportGradebookToExcel(
   institutionName: string,
@@ -20,13 +21,12 @@ export function exportGradebookToExcel(
     condicion: string;
   }[]
 ) {
-  // Construir filas para la exportación
   const rows: (string | number)[][] = [
     ['INSTITUCIÓN:', institutionName, '', 'ASIGNATURA:', subjectName],
     ['SECCIÓN:', sectionCode, '', 'DOCENTE:', teacherName],
     ['FECHA GENERACIÓN:', new Date().toLocaleDateString('es-CR'), '', 'NOTA MÍNIMA APROBACIÓN:', config.passingGrade],
     [],
-    ['RUBROS ACTIVOS Y PONDERACIONES:']
+    ['REGISTRO GENERAL DE CALIFICACIONES:']
   ];
 
   const rubricsHeader = config.rubrics
@@ -80,3 +80,138 @@ export function exportGradebookToExcel(
   const fileName = `Registro_${sectionCode}_${subjectName.substring(0, 15)}_${new Date().toISOString().split('T')[0]}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+// Exportar ficha/expediente individual de un estudiante en específico
+export function exportStudentDossierToExcel(
+  institutionName: string,
+  sectionCode: string,
+  subjectName: string,
+  teacherName: string,
+  calculated: StudentCalculatedGrades,
+  sessions: ClassSession[],
+  sessionDetails: SessionStudentDetail[]
+) {
+  const rows: (string | number)[][] = [
+    ['EXPEDIENTE INDIVIDUAL DE CALIFICACIONES Y ASISTENCIA'],
+    ['INSTITUCIÓN:', institutionName, '', 'FECHA:', new Date().toLocaleDateString('es-CR')],
+    ['SECCIÓN:', sectionCode, '', 'ASIGNATURA:', subjectName],
+    ['DOCENTE:', teacherName],
+    [],
+    ['DATOS DEL ESTUDIANTE:'],
+    ['NOMBRE COMPLETO:', `${calculated.student.firstLastName} ${calculated.student.secondLastName} ${calculated.student.firstName}`],
+    ['CÉDULA:', calculated.student.idNumber],
+    ['NOTA FINAL OBTENIDA:', calculated.notaFinal, 'CONDICIÓN:', calculated.condicion],
+    [],
+    ['DESGLOSE POR RUBROS EVALUATIVOS:'],
+    ['Rubro', 'Puntaje / Porcentaje Obtenido', 'Detalle'],
+    ['Asistencia', `${calculated.asistenciaPts}%`, `${calculated.unexcusedAbsences} Injustificadas, ${calculated.tardies} Tardías`],
+    ['Trabajo Cotidiano', `${calculated.cotidianoPts}%`, `${calculated.puntosCotidianoObtenidos} de ${calculated.totalLessons} lecciones efectivas`],
+    ['Tareas', `${calculated.tareasPts}%`, `${calculated.tareasList.length} Tareas`],
+    ['Evaluaciones / Pruebas', `${calculated.evaluacionesPts}%`, `${calculated.evaluacionesList.length} Pruebas`],
+    ['Proyectos', `${calculated.proyectosPts}%`, `${calculated.proyectosList.length} Proyectos`],
+    [],
+    ['HISTORIAL DETALLADO DE ASISTENCIA Y COTIDIANO POR CLASE:'],
+    ['Fecha', 'Lecciones', 'Estado Asistencia', 'Nivel Cotidiano', 'Tema']
+  ];
+
+  sessions.forEach(sess => {
+    const det = sessionDetails.find(d => d.sessionId === sess.id && d.studentId === calculated.studentId);
+    const attStr = det?.attendance === 'PRESENT'
+      ? 'Presente'
+      : det?.attendance === 'UNEXCUSED_ABSENCE'
+      ? 'Ausencia Injustificada'
+      : det?.attendance === 'TARDY'
+      ? 'Tardía'
+      : det?.attendance === 'LESSON_ESCAPE'
+      ? 'Escape de Lección'
+      : 'Ausencia Justificada';
+
+    const lvlStr = det?.cotidianoLevel === 3
+      ? 'Nivel 3 (Avanzado 100%)'
+      : det?.cotidianoLevel === 2
+      ? 'Nivel 2 (Intermedio 50%)'
+      : det?.cotidianoLevel === 1
+      ? 'Nivel 1 (Inicial 25%)'
+      : '0 (Ausente / No eval)';
+
+    rows.push([
+      sess.date,
+      sess.lessonsCount,
+      attStr,
+      lvlStr,
+      sess.topic || ''
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Expediente ${calculated.student.firstLastName}`);
+
+  const fileName = `Expediente_${calculated.student.firstLastName}_${sectionCode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+export function exportAnnualConsolidatedToExcel(
+  institutionName: string,
+  sectionCode: string,
+  subjectName: string,
+  teacherName: string,
+  passingGrade: number,
+  p1Weight: number,
+  p2Weight: number,
+  consolidatedData: {
+    studentId: string;
+    idNumber: string;
+    fullName: string;
+    period1Grade: number;
+    period2Grade: number;
+    annualAverage: number;
+    annualCondition: string;
+    convocatoria1?: number;
+    convocatoria2?: number;
+    finalCondition: string;
+  }[]
+) {
+  const rows: (string | number)[][] = [
+    ['INSTITUCIÓN:', institutionName, '', 'ASIGNATURA:', subjectName],
+    ['SECCIÓN:', sectionCode, '', 'DOCENTE:', teacherName],
+    ['CONSOLIDADO ANUAL DE CALIFICACIONES Y CONVOCATORIAS (MEP)', '', '', 'NOTA MÍNIMA:', passingGrade],
+    ['FECHA:', new Date().toLocaleDateString('es-CR'), '', `PONDERACIÓN: I Per (${p1Weight}%) - II Per (${p2Weight}%)`],
+    [],
+    [
+      '#',
+      'CÉDULA',
+      'ESTUDIANTE',
+      `I PERIODO (${p1Weight}%)`,
+      `II PERIODO (${p2Weight}%)`,
+      'PROMEDIO ANUAL (100%)',
+      'CONDICIÓN ANUAL',
+      '1° CONVOCATORIA',
+      '2° CONVOCATORIA',
+      'CONDICIÓN FINAL'
+    ]
+  ];
+
+  consolidatedData.forEach((st, idx) => {
+    rows.push([
+      idx + 1,
+      st.idNumber,
+      st.fullName,
+      st.period1Grade,
+      st.period2Grade,
+      st.annualAverage,
+      st.annualCondition,
+      st.convocatoria1 !== undefined ? st.convocatoria1 : '-',
+      st.convocatoria2 !== undefined ? st.convocatoria2 : '-',
+      st.finalCondition
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consolidado Anual');
+
+  const fileName = `Consolidado_Anual_${sectionCode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+

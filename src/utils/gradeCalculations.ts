@@ -162,3 +162,58 @@ export function computeMEPStudentGrades(
     condicion
   };
 }
+
+export interface AnnualConsolidatedStudent {
+  studentId: string;
+  student: Student;
+  period1Grade: number;
+  period2Grade: number;
+  annualAverage: number;
+  annualCondition: 'Aprobado' | 'Aplazado';
+  convocatoria1?: number;
+  convocatoria2?: number;
+  finalCondition: 'Aprobado' | 'Aprobado (1° Convocatoria)' | 'Aprobado (2° Convocatoria)' | 'Aplazado' | 'Reprobado';
+}
+
+export function computeAnnualConsolidatedStudent(
+  student: Student,
+  gradeP1: StudentCalculatedGrades,
+  gradeP2: StudentCalculatedGrades,
+  passingGrade: number,
+  p1Weight: number = 50,
+  p2Weight: number = 50,
+  convocatoria1?: number,
+  convocatoria2?: number
+): AnnualConsolidatedStudent {
+  const nota1 = gradeP1.notaFinal;
+  const nota2 = gradeP2.notaFinal;
+  const totalWeight = p1Weight + p2Weight || 100;
+  const annualAverage = Number((((nota1 * p1Weight) + (nota2 * p2Weight)) / totalWeight).toFixed(2));
+  const annualCondition: 'Aprobado' | 'Aplazado' = annualAverage >= passingGrade ? 'Aprobado' : 'Aplazado';
+
+  let finalCondition: AnnualConsolidatedStudent['finalCondition'] = annualCondition;
+
+  if (annualCondition === 'Aplazado') {
+    if (convocatoria1 !== undefined && convocatoria1 >= passingGrade) {
+      finalCondition = 'Aprobado (1° Convocatoria)';
+    } else if (convocatoria2 !== undefined && convocatoria2 >= passingGrade) {
+      finalCondition = 'Aprobado (2° Convocatoria)';
+    } else if (convocatoria1 !== undefined && convocatoria2 !== undefined && convocatoria1 < passingGrade && convocatoria2 < passingGrade) {
+      finalCondition = 'Reprobado';
+    } else {
+      finalCondition = 'Aplazado';
+    }
+  }
+
+  return {
+    studentId: student.id,
+    student,
+    period1Grade: nota1,
+    period2Grade: nota2,
+    annualAverage,
+    annualCondition,
+    convocatoria1,
+    convocatoria2,
+    finalCondition
+  };
+}

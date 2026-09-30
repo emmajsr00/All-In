@@ -60,7 +60,69 @@ export const db = new EduGradeDatabase();
 
 export async function seedDatabaseIfEmpty() {
   const count = await db.institutions.count();
-  if (count > 0) return;
+  if (count > 0) {
+    // Migración ligera: asegurar que existan los periodos y datos de prueba de II periodo
+    const configs = await db.evaluationConfigs.toArray();
+    for (const c of configs) {
+      if (!c.periods || c.periods.length === 0) {
+        await db.evaluationConfigs.update(c.id, {
+          periods: [
+            { periodId: 'I_PERIODO', name: 'I Periodo', startDate: '2026-02-09', endDate: '2026-06-26', weightPercentage: 50 },
+            { periodId: 'II_PERIODO', name: 'II Periodo', startDate: '2026-07-13', endDate: '2026-12-11', weightPercentage: 50 }
+          ]
+        });
+      }
+    }
+
+    const p2SessionsCount = await db.classSessions.filter(s => s.periodId === 'II_PERIODO').count();
+    if (p2SessionsCount === 0) {
+      const p2Sessions: ClassSession[] = [
+        { id: 'sess-06', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-07-20', lessonsCount: 3, topic: 'Advanced Negotiation & Cross-Cultural Communication', indicatorId: 'ind-01' },
+        { id: 'sess-07', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-08-03', lessonsCount: 3, topic: 'Market Research Presentations & Analysis', indicatorId: 'ind-02' },
+        { id: 'sess-08', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-08-17', lessonsCount: 3, topic: 'Digital Marketing Strategies & Client Acquisition', indicatorId: 'ind-03' },
+        { id: 'sess-09', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-09-07', lessonsCount: 3, topic: 'Final Business Pitch & Proposal Review', indicatorId: 'ind-05' }
+      ];
+      await db.classSessions.bulkAdd(p2Sessions);
+
+      const allStudents = await db.students.toArray();
+      const p2Details: SessionStudentDetail[] = [];
+      p2Sessions.forEach(sess => {
+        allStudents.forEach((st, idx) => {
+          p2Details.push({
+            id: `dtl-${sess.id}-${st.id}`,
+            sessionId: sess.id,
+            studentId: st.id,
+            attendance: idx === 8 && sess.id === 'sess-08' ? 'UNEXCUSED_ABSENCE' : 'PRESENT',
+            cotidianoLevel: idx === 8 ? 1 : 3
+          });
+        });
+      });
+      await db.sessionDetails.bulkAdd(p2Details);
+
+      const p2Tasks: TaskGrade[] = [];
+      const p2Exams: ExamGrade[] = [];
+      const p2Projects: ProjectGrade[] = [];
+
+      allStudents.forEach((st, idx) => {
+        p2Tasks.push(
+          { id: `tg-${st.id}-1-p2`, assignmentId: 'asg-hellen-12-1-bus', studentId: st.id, periodId: 'II_PERIODO', taskId: 'tdef-1', taskNumber: 1, percentageEarned: idx === 8 ? 3.0 : 5.0 },
+          { id: `tg-${st.id}-2-p2`, assignmentId: 'asg-hellen-12-1-bus', studentId: st.id, periodId: 'II_PERIODO', taskId: 'tdef-2', taskNumber: 2, percentageEarned: idx === 8 ? 2.5 : 4.8 }
+        );
+        p2Exams.push(
+          { id: `eg-${st.id}-1-p2`, assignmentId: 'asg-hellen-12-1-bus', studentId: st.id, periodId: 'II_PERIODO', examId: 'edef-1', examNumber: 1, percentageEarned: idx === 8 ? 11.5 : 19.5 },
+          { id: `eg-${st.id}-2-p2`, assignmentId: 'asg-hellen-12-1-bus', studentId: st.id, periodId: 'II_PERIODO', examId: 'edef-2', examNumber: 2, percentageEarned: idx === 8 ? 13.0 : 24.0 }
+        );
+        p2Projects.push(
+          { id: `pg-${st.id}-1-p2`, assignmentId: 'asg-hellen-12-1-bus', studentId: st.id, periodId: 'II_PERIODO', projectId: 'pdef-1', projectNumber: 1, percentageEarned: idx === 8 ? 9.0 : 15.0 }
+        );
+      });
+
+      await db.taskGrades.bulkAdd(p2Tasks);
+      await db.examGrades.bulkAdd(p2Exams);
+      await db.projectGrades.bulkAdd(p2Projects);
+    }
+    return;
+  }
 
   // 1. Institución 1: Colegio Técnico (Multi-tenant contratado)
   const ctpPoas: Institution = {
@@ -297,6 +359,22 @@ export async function seedDatabaseIfEmpty() {
     periodId: 'I_PERIODO',
     passingGrade: 70,
     periodWeight: 50,
+    periods: [
+      {
+        periodId: 'I_PERIODO',
+        name: 'I Periodo',
+        startDate: '2026-02-09',
+        endDate: '2026-06-26',
+        weightPercentage: 50
+      },
+      {
+        periodId: 'II_PERIODO',
+        name: 'II Periodo',
+        startDate: '2026-07-13',
+        endDate: '2026-12-11',
+        weightPercentage: 50
+      }
+    ],
     rubrics: [
       { id: 'r-asis', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Porcentaje calculado según faltas y total de lecciones' },
       { id: 'r-cot', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Suma de desempeño por clase y lecciones efectivas' },
@@ -322,11 +400,17 @@ export async function seedDatabaseIfEmpty() {
 
   // 10. Clases reales impartidas ligadas a los Indicadores del planeamiento
   const sessions: ClassSession[] = [
+    // --- I PERIODO ---
     { id: 'sess-01', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-02-27', lessonsCount: 3, topic: 'Professional Greeting & Executive Phone Etiquette', indicatorId: 'ind-01' },
     { id: 'sess-02', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-02', lessonsCount: 3, topic: 'Customer Inquiry & Active Listening', indicatorId: 'ind-02' },
     { id: 'sess-03', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-06', lessonsCount: 3, topic: 'Troubleshooting Protocols & Polite Expressions', indicatorId: 'ind-03' },
     { id: 'sess-04', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-09', lessonsCount: 3, topic: 'Customer Service Emails & Case Studies', indicatorId: 'ind-05' },
-    { id: 'sess-05', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-13', lessonsCount: 3, topic: 'Oral Presentation & Role Play Practice', indicatorId: 'ind-06' }
+    { id: 'sess-05', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-13', lessonsCount: 3, topic: 'Oral Presentation & Role Play Practice', indicatorId: 'ind-06' },
+    // --- II PERIODO ---
+    { id: 'sess-06', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-07-20', lessonsCount: 3, topic: 'Advanced Negotiation & Cross-Cultural Communication', indicatorId: 'ind-01' },
+    { id: 'sess-07', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-08-03', lessonsCount: 3, topic: 'Market Research Presentations & Analysis', indicatorId: 'ind-02' },
+    { id: 'sess-08', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-08-17', lessonsCount: 3, topic: 'Digital Marketing Strategies & Client Acquisition', indicatorId: 'ind-03' },
+    { id: 'sess-09', assignmentId: 'asg-hellen-12-1-bus', periodId: 'II_PERIODO', date: '2026-09-07', lessonsCount: 3, topic: 'Final Business Pitch & Proposal Review', indicatorId: 'ind-05' }
   ];
 
   await db.classSessions.bulkAdd(sessions);

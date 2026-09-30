@@ -67,12 +67,30 @@ export interface RubricSubItemDef {
   scoringMode?: 'PERCENTAGE' | 'POINTS';
 }
 
+export interface AcademicPeriodConfig {
+  periodId: 'I_PERIODO' | 'II_PERIODO';
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  weightPercentage: number; // e.g. 50%
+}
+
+export interface RecoveryExamGrade {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  convocatoria1?: number; // 0 - 100
+  convocatoria2?: number; // 0 - 100
+}
+
 export interface EvaluationConfig {
   id: string;
   assignmentId: string;
   periodId: 'I_PERIODO' | 'II_PERIODO';
   passingGrade: number; // e.g. 70 o 80
   periodWeight: number; // e.g. 50%
+  periods?: AcademicPeriodConfig[]; // Configuración de fechas de los periodos
+  recoveryGrades?: RecoveryExamGrade[]; // Calificaciones de convocatoria / estrategia de promoción
   rubrics: EvaluationRubricItem[];
   taskDefinitions: RubricSubItemDef[];
   examDefinitions: RubricSubItemDef[];
