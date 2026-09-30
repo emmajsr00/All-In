@@ -7,6 +7,7 @@ import type {
   TeacherAssignment,
   EvaluationConfig,
   Student,
+  LearningIndicator,
   ClassSession,
   SessionStudentDetail,
   TaskGrade,
@@ -24,6 +25,7 @@ export class EduGradeDatabase extends Dexie {
   assignments!: Table<TeacherAssignment, string>;
   students!: Table<Student, string>;
   evaluationConfigs!: Table<EvaluationConfig, string>;
+  indicators!: Table<LearningIndicator, string>;
   classSessions!: Table<ClassSession, string>;
   sessionDetails!: Table<SessionStudentDetail, string>;
   taskGrades!: Table<TaskGrade, string>;
@@ -33,7 +35,7 @@ export class EduGradeDatabase extends Dexie {
   schedules!: Table<ScheduleItem, string>;
 
   constructor() {
-    super('EduGradeProDB_v2');
+    super('EduGradeProDB_v3');
     this.version(1).stores({
       institutions: 'id, code, type',
       users: 'id, email, role, institutionId',
@@ -42,11 +44,12 @@ export class EduGradeDatabase extends Dexie {
       assignments: 'id, teacherId, groupId, subjectId',
       students: 'id, groupId, idNumber, firstLastName, secondLastName',
       evaluationConfigs: 'id, assignmentId, periodId',
-      classSessions: 'id, assignmentId, periodId, date',
+      indicators: 'id, assignmentId, code',
+      classSessions: 'id, assignmentId, periodId, date, indicatorId',
       sessionDetails: 'id, sessionId, studentId, attendance',
-      taskGrades: 'id, assignmentId, studentId, periodId, taskNumber',
-      examGrades: 'id, assignmentId, studentId, periodId, examNumber',
-      projectGrades: 'id, assignmentId, studentId, periodId, projectNumber',
+      taskGrades: 'id, assignmentId, studentId, periodId, taskId',
+      examGrades: 'id, assignmentId, studentId, periodId, examId',
+      projectGrades: 'id, assignmentId, studentId, periodId, projectId',
       portfolioGrades: 'id, assignmentId, studentId, periodId',
       schedules: 'id, teacherId, groupId, subjectId, dayOfWeek'
     });
@@ -168,7 +171,7 @@ export async function seedDatabaseIfEmpty() {
 
   await db.groups.bulkAdd(groups);
 
-  // 6. Asignaciones Docentes (Separadas por materia aunque sea el mismo grupo)
+  // 6. Asignaciones Docentes
   const assignments: TeacherAssignment[] = [
     {
       id: 'asg-hellen-12-1-bus',
@@ -200,7 +203,7 @@ export async function seedDatabaseIfEmpty() {
 
   await db.assignments.bulkAdd(assignments);
 
-  // 7. Estudiantes reales extraídos del Excel 12-1.xlsm
+  // 7. Estudiantes reales de 12-1.xlsm
   const students121: Student[] = [
     { id: 'std-01', groupId: 'grp-12-1', idNumber: '209070147', firstLastName: 'Alfaro', secondLastName: 'Céspedes', firstName: 'Bryan Mauricio', accommodation: 'NONE' },
     { id: 'std-02', groupId: 'grp-12-1', idNumber: '209040532', firstLastName: 'Alfaro', secondLastName: 'González', firstName: 'Ian', accommodation: 'NONE' },
@@ -221,7 +224,73 @@ export async function seedDatabaseIfEmpty() {
 
   await db.students.bulkAdd(students121);
 
-  // 8. Configuración Evaluativa Modular (Fórmulas exactas del Excel 12-1.xlsm)
+  // 8. Indicadores Oficiales extraídos de la hoja 'Indicadores' del Excel 12-1.xlsm
+  const indicators: LearningIndicator[] = [
+    {
+      id: 'ind-01',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-01',
+      skillArea: 'Listening',
+      description: 'L/ Follow the main points of extended discussion around him/her about the types of apps marketing.',
+      initialLevelDesc: 'Reconoce palabras clave aisladas del tema con apoyo.',
+      intermediateLevelDesc: 'Comprende los puntos principales con repeticiones moderadas.',
+      advancedLevelDesc: 'Sigue fluidamente los puntos principales y detalles específicos de la discusión.'
+    },
+    {
+      id: 'ind-02',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-02',
+      skillArea: 'Reading',
+      description: 'R/ Understand clearly written instructions about the aspects required to compare app marketing and consumers reactions.',
+      initialLevelDesc: 'Identifica vocabulario básico de instrucciones escritas.',
+      intermediateLevelDesc: 'Interpreta las instrucciones principales del reporte.',
+      advancedLevelDesc: 'Comprende con precisión todas las instrucciones y relaciones causa-efecto.'
+    },
+    {
+      id: 'ind-03',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-03',
+      skillArea: 'Spoken Interaction',
+      description: 'SI/ Maintain a conversation or discussion about essential app marketing strategies.',
+      initialLevelDesc: 'Participa con respuestas breves y estructuradas.',
+      intermediateLevelDesc: 'Mantiene el intercambio con fluidez intermedia.',
+      advancedLevelDesc: 'Interactúa con espontaneidad argumentando estrategias de mercadeo.'
+    },
+    {
+      id: 'ind-04',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-04',
+      skillArea: 'Spoken Interaction',
+      description: 'SI/ Enter unprepared into a conversation about the differences between different types of marketing.',
+      initialLevelDesc: 'Interviene con preparación previa necesaria.',
+      intermediateLevelDesc: 'Se integra a la conversación con pausas ocasionales.',
+      advancedLevelDesc: 'Participa sin preparación previa de forma asertiva.'
+    },
+    {
+      id: 'ind-05',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-05',
+      skillArea: 'Spoken Production',
+      description: 'SP/ Report straightforward information about the features taken into account for the development of an app marketing plan.',
+      initialLevelDesc: 'Describe características de forma puntual.',
+      intermediateLevelDesc: 'Estructura una presentación comprensible.',
+      advancedLevelDesc: 'Presenta la información de forma detallada y profesional.'
+    },
+    {
+      id: 'ind-06',
+      assignmentId: 'asg-hellen-12-1-bus',
+      code: 'IND-06',
+      skillArea: 'Writing',
+      description: 'W/ Write brief standard reports conveying factual information, stating reasons for actions that will be done in the marketing plan.',
+      initialLevelDesc: 'Redacta enunciados simples con errores menores.',
+      intermediateLevelDesc: 'Elabora un reporte básico coherente.',
+      advancedLevelDesc: 'Redacta un reporte ejecutivo estructurado con argumentos claros.'
+    }
+  ];
+
+  await db.indicators.bulkAdd(indicators);
+
+  // 9. Configuración Evaluativa Modular con definición dinámica de tareas, exámenes y proyectos
   const evalConfig121: EvaluationConfig = {
     id: 'cfg-asg-121-bus-i',
     assignmentId: 'asg-hellen-12-1-bus',
@@ -231,57 +300,55 @@ export async function seedDatabaseIfEmpty() {
     rubrics: [
       { id: 'r-asis', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Porcentaje calculado según faltas y total de lecciones' },
       { id: 'r-cot', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Suma de desempeño por clase y lecciones efectivas' },
-      { id: 'r-tar', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: '2 tareas (5% cada una)' },
-      { id: 'r-eva', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Prueba 1 (20%) y Prueba 2 (25%)' },
+      { id: 'r-tar', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: 'Tareas y trabajos extra-clase' },
+      { id: 'r-eva', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Pruebas comprensivas' },
       { id: 'r-pro', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15, description: 'Proyecto técnico de periodo' },
       { id: 'r-por', key: 'portafolio', label: 'Portafolio de Evidencias', enabled: false, percentage: 0, description: 'Opcional (Activable según colegio o materia)' }
     ],
-    taskWeights: [
-      { taskNumber: 1, percentage: 5 },
-      { taskNumber: 2, percentage: 5 }
+    taskDefinitions: [
+      { id: 'tdef-1', number: 1, title: 'Tarea 1: Glosario de Términos Corporativos', percentage: 5 },
+      { id: 'tdef-2', number: 2, title: 'Tarea 2: Análisis de Casos de Atención al Cliente', percentage: 5 }
     ],
-    examWeights: [
-      { examNumber: 1, percentage: 20 },
-      { examNumber: 2, percentage: 25 }
+    examDefinitions: [
+      { id: 'edef-1', number: 1, title: 'Evaluación I: Prueba Escrita Comprensiva', percentage: 20 },
+      { id: 'edef-2', number: 2, title: 'Evaluación II: Prueba Práctica Oral en Laboratorio', percentage: 25 }
     ],
-    projectWeights: [
-      { projectNumber: 1, percentage: 15 }
+    projectDefinitions: [
+      { id: 'pdef-1', number: 1, title: 'Proyecto I: Plan de Mercadeo y Protocolos de Servicio', percentage: 15 }
     ]
   };
 
   await db.evaluationConfigs.add(evalConfig121);
 
-  // 9. Clases reales impartidas (Extraídas de la hoja Asis. Cot IP del Excel)
-  // Cada clase tiene su fecha y lecciones (3 lecciones por clase)
+  // 10. Clases reales impartidas ligadas a los Indicadores del planeamiento
   const sessions: ClassSession[] = [
-    { id: 'sess-01', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-02-27', lessonsCount: 3, topic: 'Professional Greeting & Executive Phone Etiquette' },
-    { id: 'sess-02', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-02', lessonsCount: 3, topic: 'Customer Inquiry & Active Listening' },
-    { id: 'sess-03', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-06', lessonsCount: 3, topic: 'Troubleshooting Protocols & Polite Expressions' },
-    { id: 'sess-04', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-09', lessonsCount: 3, topic: 'Customer Service Emails & Case Studies' },
-    { id: 'sess-05', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-13', lessonsCount: 3, topic: 'Oral Presentation & Role Play Practice' }
+    { id: 'sess-01', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-02-27', lessonsCount: 3, topic: 'Professional Greeting & Executive Phone Etiquette', indicatorId: 'ind-01' },
+    { id: 'sess-02', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-02', lessonsCount: 3, topic: 'Customer Inquiry & Active Listening', indicatorId: 'ind-02' },
+    { id: 'sess-03', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-06', lessonsCount: 3, topic: 'Troubleshooting Protocols & Polite Expressions', indicatorId: 'ind-03' },
+    { id: 'sess-04', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-09', lessonsCount: 3, topic: 'Customer Service Emails & Case Studies', indicatorId: 'ind-05' },
+    { id: 'sess-05', assignmentId: 'asg-hellen-12-1-bus', periodId: 'I_PERIODO', date: '2026-03-13', lessonsCount: 3, topic: 'Oral Presentation & Role Play Practice', indicatorId: 'ind-06' }
   ];
 
   await db.classSessions.bulkAdd(sessions);
 
-  // 10. Detalle de asistencia y cotidiano por estudiante para cada clase
-  // Alumnos reales del Excel con niveles 1 (Inicial 0.25), 2 (Intermedio 0.5), 3 (Avanzado 1.0)
+  // 11. Detalle de asistencia y cotidiano por estudiante
   const sessionDetails: SessionStudentDetail[] = [];
   sessions.forEach(sess => {
     students121.forEach((st, idx) => {
       let att: SessionStudentDetail['attendance'] = 'PRESENT';
-      let lvl: SessionStudentDetail['cotidianoLevel'] = 3; // Avanzado
+      let lvl: SessionStudentDetail['cotidianoLevel'] = 3;
 
       if (idx === 7 && sess.id === 'sess-02') {
         att = 'UNEXCUSED_ABSENCE';
         lvl = 0;
       } else if (idx === 5 && sess.id === 'sess-03') {
         att = 'TARDY';
-        lvl = 2; // Intermedio
+        lvl = 2;
       } else if (idx === 14 && sess.id === 'sess-04') {
         att = 'EXCUSED_ABSENCE';
         lvl = 0;
       } else if (idx === 8 && sess.id === 'sess-01') {
-        lvl = 2; // Intermedio
+        lvl = 2;
       }
 
       sessionDetails.push({
@@ -296,10 +363,9 @@ export async function seedDatabaseIfEmpty() {
 
   await db.sessionDetails.bulkAdd(sessionDetails);
 
-  // 11. Notas de Tareas reales extraídas del Excel
+  // 12. Notas de Tareas
   const taskGrades: TaskGrade[] = [];
   students121.forEach((st, idx) => {
-    // Tarea 1 (5%) y Tarea 2 (5%)
     const t1 = idx === 0 ? 4.54 : idx === 1 ? 4.37 : 5.0;
     const t2 = idx === 0 ? 5.0 : idx === 1 ? 4.70 : idx === 4 ? 3.86 : 5.0;
 
@@ -308,6 +374,7 @@ export async function seedDatabaseIfEmpty() {
       assignmentId: 'asg-hellen-12-1-bus',
       studentId: st.id,
       periodId: 'I_PERIODO',
+      taskId: 'tdef-1',
       taskNumber: 1,
       percentageEarned: t1
     });
@@ -316,13 +383,14 @@ export async function seedDatabaseIfEmpty() {
       assignmentId: 'asg-hellen-12-1-bus',
       studentId: st.id,
       periodId: 'I_PERIODO',
+      taskId: 'tdef-2',
       taskNumber: 2,
       percentageEarned: t2
     });
   });
   await db.taskGrades.bulkAdd(taskGrades);
 
-  // 12. Notas de Evaluaciones reales (Prueba 1 sobre 20%, Prueba 2 sobre 25%)
+  // 13. Notas de Evaluaciones
   const examGrades: ExamGrade[] = [];
   students121.forEach((st, idx) => {
     const e1 = idx === 0 ? 19.23 : idx === 1 ? 20.0 : idx === 8 ? 16.5 : 19.5;
@@ -333,6 +401,7 @@ export async function seedDatabaseIfEmpty() {
       assignmentId: 'asg-hellen-12-1-bus',
       studentId: st.id,
       periodId: 'I_PERIODO',
+      examId: 'edef-1',
       examNumber: 1,
       percentageEarned: e1
     });
@@ -341,13 +410,14 @@ export async function seedDatabaseIfEmpty() {
       assignmentId: 'asg-hellen-12-1-bus',
       studentId: st.id,
       periodId: 'I_PERIODO',
+      examId: 'edef-2',
       examNumber: 2,
       percentageEarned: e2
     });
   });
   await db.examGrades.bulkAdd(examGrades);
 
-  // 13. Notas de Proyecto (15%)
+  // 14. Notas de Proyectos
   const projectGrades: ProjectGrade[] = [];
   students121.forEach((st, idx) => {
     projectGrades.push({
@@ -355,13 +425,14 @@ export async function seedDatabaseIfEmpty() {
       assignmentId: 'asg-hellen-12-1-bus',
       studentId: st.id,
       periodId: 'I_PERIODO',
+      projectId: 'pdef-1',
       projectNumber: 1,
       percentageEarned: idx === 8 ? 13.5 : 15.0
     });
   });
   await db.projectGrades.bulkAdd(projectGrades);
 
-  // 14. Horarios semanales
+  // 15. Horarios
   const schedules: ScheduleItem[] = [
     { id: 'sch-01', teacherId: 'user-hellen', groupId: 'grp-12-1', subjectId: 'sub-eng-business', dayOfWeek: 1, startTime: '07:00', endTime: '09:30', classroom: 'Laboratorio de Idiomas 2' },
     { id: 'sch-02', teacherId: 'user-hellen', groupId: 'grp-12-1', subjectId: 'sub-eng-oral', dayOfWeek: 1, startTime: '09:45', endTime: '11:15', classroom: 'Aula 14' },

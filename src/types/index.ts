@@ -58,6 +58,13 @@ export interface EvaluationRubricItem {
   description?: string;
 }
 
+export interface RubricSubItemDef {
+  id: string;
+  number: number;
+  title: string;
+  percentage: number;
+}
+
 export interface EvaluationConfig {
   id: string;
   assignmentId: string;
@@ -65,10 +72,10 @@ export interface EvaluationConfig {
   passingGrade: number; // e.g. 70 o 80
   periodWeight: number; // e.g. 50%
   rubrics: EvaluationRubricItem[];
-  // Ponderaciones internas de tareas y evaluaciones
-  taskWeights?: { taskNumber: number; percentage: number }[];
-  examWeights?: { examNumber: number; percentage: number }[];
-  projectWeights?: { projectNumber: number; percentage: number }[];
+  // Sub-items dinámicos
+  taskDefinitions: RubricSubItemDef[];
+  examDefinitions: RubricSubItemDef[];
+  projectDefinitions: RubricSubItemDef[];
 }
 
 export type AccommodationType = 'NONE' | 'NON_SIGNIFICANT' | 'SIGNIFICANT' | 'ACCESS';
@@ -91,6 +98,17 @@ export type AttendanceStatus =
   | 'TARDY'                // Llegada Tardía
   | 'EXCUSED_ABSENCE';     // Ausencia Justificada / Motivada
 
+export interface LearningIndicator {
+  id: string;
+  assignmentId: string;
+  code: string; // e.g. "IND-01", "L-01"
+  skillArea?: string; // e.g. "Listening", "Reading", "Spoken Interaction", "Writing"
+  description: string; // Aprendizaje o indicador general del planeamiento
+  initialLevelDesc?: string;
+  intermediateLevelDesc?: string;
+  advancedLevelDesc?: string;
+}
+
 export interface ClassSession {
   id: string;
   assignmentId: string;
@@ -98,6 +116,7 @@ export interface ClassSession {
   date: string; // YYYY-MM-DD
   lessonsCount: number; // Cantidad de lecciones (ej: 2, 3 o 4 lecciones)
   topic?: string;
+  indicatorId?: string; // Ligado al planeamiento docente / indicador del Excel
 }
 
 export interface SessionStudentDetail {
@@ -113,6 +132,7 @@ export interface TaskGrade {
   assignmentId: string;
   studentId: string;
   periodId: 'I_PERIODO' | 'II_PERIODO';
+  taskId: string;
   taskNumber: number;
   percentageEarned: number;
 }
@@ -122,6 +142,7 @@ export interface ExamGrade {
   assignmentId: string;
   studentId: string;
   periodId: 'I_PERIODO' | 'II_PERIODO';
+  examId: string;
   examNumber: number;
   percentageEarned: number;
 }
@@ -131,6 +152,7 @@ export interface ProjectGrade {
   assignmentId: string;
   studentId: string;
   periodId: 'I_PERIODO' | 'II_PERIODO';
+  projectId: string;
   projectNumber: number;
   percentageEarned: number;
 }

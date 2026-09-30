@@ -9,6 +9,7 @@ import type {
   Student,
   EvaluationConfig,
   ScheduleItem,
+  LearningIndicator,
   ClassSession,
   SessionStudentDetail,
   TaskGrade,
@@ -38,7 +39,8 @@ export const App: React.FC = () => {
   const [evaluationConfigs, setEvaluationConfigs] = useState<EvaluationConfig[]>([]);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
 
-  // Detailed grading records matching Excel 12-1.xlsm
+  // Detailed grading records & Indicators
+  const [indicators, setIndicators] = useState<LearningIndicator[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [sessionDetails, setSessionDetails] = useState<SessionStudentDetail[]>([]);
   const [taskGrades, setTaskGrades] = useState<TaskGrade[]>([]);
@@ -56,7 +58,7 @@ export const App: React.FC = () => {
   // Initialize DB and load data
   const loadAppData = async () => {
     await seedDatabaseIfEmpty();
-    const [u, inst, grps, subs, asgs, stds, configs, schs, sess, dtl, tg, eg, pg, port] = await Promise.all([
+    const [u, inst, grps, subs, asgs, stds, configs, schs, inds, sess, dtl, tg, eg, pg, port] = await Promise.all([
       db.users.toArray(),
       db.institutions.toArray(),
       db.groups.toArray(),
@@ -65,6 +67,7 @@ export const App: React.FC = () => {
       db.students.toArray(),
       db.evaluationConfigs.toArray(),
       db.schedules.toArray(),
+      db.indicators.toArray(),
       db.classSessions.toArray(),
       db.sessionDetails.toArray(),
       db.taskGrades.toArray(),
@@ -81,6 +84,7 @@ export const App: React.FC = () => {
     setStudents(stds);
     setEvaluationConfigs(configs);
     setSchedules(schs);
+    setIndicators(inds);
     setSessions(sess);
     setSessionDetails(dtl);
     setTaskGrades(tg);
@@ -159,6 +163,17 @@ export const App: React.FC = () => {
           { id: 'r-4', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45 },
           { id: 'r-5', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15 },
           { id: 'r-6', key: 'portafolio', label: 'Portafolio', enabled: false, percentage: 0 }
+        ],
+        taskDefinitions: [
+          { id: 't1', number: 1, title: 'Tarea 1', percentage: 5 },
+          { id: 't2', number: 2, title: 'Tarea 2', percentage: 5 }
+        ],
+        examDefinitions: [
+          { id: 'e1', number: 1, title: 'Evaluación I', percentage: 20 },
+          { id: 'e2', number: 2, title: 'Evaluación II', percentage: 25 }
+        ],
+        projectDefinitions: [
+          { id: 'p1', number: 1, title: 'Proyecto I', percentage: 15 }
         ]
       }
     : null;
@@ -200,7 +215,7 @@ export const App: React.FC = () => {
             onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
           />
         ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
-          /* VISTA COMPLETA DEL GRUPO CON TODAS SUS PESTAÑAS (Estilo Excel) */
+          /* VISTA COMPLETA DEL GRUPO CON TODAS SUS PESTAÑAS */
           <GroupWorkspaceView
             institutionName={currentInstitution.name}
             assignment={selectedAssignment}
@@ -209,6 +224,7 @@ export const App: React.FC = () => {
             teacherName={currentUser.name}
             students={students.filter(s => s.groupId === selectedAssignment.groupId)}
             config={activeConfig}
+            indicators={indicators.filter(i => i.assignmentId === selectedAssignment.id)}
             sessions={sessions.filter(s => s.assignmentId === selectedAssignment.id)}
             sessionDetails={sessionDetails}
             taskGrades={taskGrades.filter(t => t.assignmentId === selectedAssignment.id)}
@@ -254,6 +270,17 @@ export const App: React.FC = () => {
                 { id: 'r-4', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Exámenes' },
                 { id: 'r-5', key: 'proyectos', label: 'Proyectos', enabled: true, percentage: 15, description: 'Proyectos técnicos' },
                 { id: 'r-6', key: 'portafolio', label: 'Portafolio de Evidencias', enabled: false, percentage: 0, description: 'Opcional según materia' }
+              ],
+              taskDefinitions: [
+                { id: 't1', number: 1, title: 'Tarea 1', percentage: 5 },
+                { id: 't2', number: 2, title: 'Tarea 2', percentage: 5 }
+              ],
+              examDefinitions: [
+                { id: 'e1', number: 1, title: 'Evaluación I', percentage: 20 },
+                { id: 'e2', number: 2, title: 'Evaluación II', percentage: 25 }
+              ],
+              projectDefinitions: [
+                { id: 'p1', number: 1, title: 'Proyecto I', percentage: 15 }
               ]
             }
           }

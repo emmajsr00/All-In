@@ -17,31 +17,31 @@ export interface StudentCalculatedGrades {
   lessonEscapes: number;
   tardies: number;
   excusedAbsences: number;
-  effectiveFaltas: number; // Injustificadas + Escapes + Math.floor(Tardias / 2)
+  effectiveFaltas: number;
   totalLessons: number;
-  asistenciaPts: number; // Porcentaje obtenido (ej. 4.77 sobre 5%)
+  asistenciaPts: number;
 
   // Desglose Cotidiano
-  puntosCotidianoObtenidos: number; // Suma de lecciones multiplicadas por su factor de nivel
-  cotidianoPts: number; // Porcentaje obtenido (ej. 25 sobre 25%)
+  puntosCotidianoObtenidos: number;
+  cotidianoPts: number;
 
   // Desglose Tareas
   tareasList: { taskNumber: number; percentageEarned: number }[];
-  tareasPts: number; // Porcentaje obtenido (ej. 9.54 sobre 10%)
+  tareasPts: number;
 
   // Desglose Evaluaciones
   evaluacionesList: { examNumber: number; percentageEarned: number }[];
-  evaluacionesPts: number; // Porcentaje obtenido (ej. 43.24 sobre 45%)
+  evaluacionesPts: number;
 
   // Desglose Proyectos
   proyectosList: { projectNumber: number; percentageEarned: number }[];
-  proyectosPts: number; // Porcentaje obtenido (ej. 15 sobre 15%)
+  proyectosPts: number;
 
   // Portafolio
   portafolioPts: number;
 
   // Totales
-  notaFinal: number; // Suma de los rubros habilitados
+  notaFinal: number;
   condicion: 'Aprobado' | 'Aplazado';
 }
 
@@ -58,7 +58,7 @@ export function computeMEPStudentGrades(
   // 1. Total de lecciones impartidas en el periodo (Celda $A$8 del Excel Asis. Cot IP)
   const totalLessons = sessions.reduce((acc, s) => acc + (Number(s.lessonsCount) || 0), 0);
 
-  // 2. Asistencia (Fórmula: G2 * (1 - (Injustificadas + Escapes + floor(Tardías/2)) / TotalLecciones))
+  // 2. Asistencia (Fórmula MEP: G2 * (1 - (Injustificadas + Escapes + floor(Tardías/2)) / TotalLecciones))
   const studentDetails = details.filter(d => d.studentId === student.id);
   const unexcusedAbsences = studentDetails.filter(d => d.attendance === 'UNEXCUSED_ABSENCE').length;
   const lessonEscapes = studentDetails.filter(d => d.attendance === 'LESSON_ESCAPE').length;
@@ -76,7 +76,6 @@ export function computeMEPStudentGrades(
   }
 
   // 3. Cotidiano (Fórmula Celda FM13: SUM(Lecciones_i * Factor_Nivel) / TotalLecciones * PesoCotidiano)
-  // Factores MEP del Excel: Nivel 1 = 0.25, Nivel 2 = 0.50, Nivel 3 = 1.00
   let puntosCotidianoObtenidos = 0;
   sessions.forEach(sess => {
     const det = studentDetails.find(d => d.sessionId === sess.id);
@@ -100,19 +99,25 @@ export function computeMEPStudentGrades(
   const sTasks = taskGrades.filter(t => t.studentId === student.id);
   const tareasList = sTasks.map(t => ({ taskNumber: t.taskNumber, percentageEarned: t.percentageEarned }));
   const tarRubric = config.rubrics.find(r => r.key === 'tareas');
-  const tareasPts = tarRubric && tarRubric.enabled ? sTasks.reduce((acc, t) => acc + (Number(t.percentageEarned) || 0), 0) : 0;
+  const tareasPts = tarRubric && tarRubric.enabled
+    ? Math.min(tarRubric.percentage, sTasks.reduce((acc, t) => acc + (Number(t.percentageEarned) || 0), 0))
+    : 0;
 
   // 5. Evaluaciones / Pruebas
   const sExams = examGrades.filter(e => e.studentId === student.id);
   const evaluacionesList = sExams.map(e => ({ examNumber: e.examNumber, percentageEarned: e.percentageEarned }));
   const evaRubric = config.rubrics.find(r => r.key === 'evaluaciones');
-  const evaluacionesPts = evaRubric && evaRubric.enabled ? sExams.reduce((acc, e) => acc + (Number(e.percentageEarned) || 0), 0) : 0;
+  const evaluacionesPts = evaRubric && evaRubric.enabled
+    ? Math.min(evaRubric.percentage, sExams.reduce((acc, e) => acc + (Number(e.percentageEarned) || 0), 0))
+    : 0;
 
   // 6. Proyectos
   const sProjects = projectGrades.filter(p => p.studentId === student.id);
   const proyectosList = sProjects.map(p => ({ projectNumber: p.projectNumber, percentageEarned: p.percentageEarned }));
   const proRubric = config.rubrics.find(r => r.key === 'proyectos');
-  const proyectosPts = proRubric && proRubric.enabled ? sProjects.reduce((acc, p) => acc + (Number(p.percentageEarned) || 0), 0) : 0;
+  const proyectosPts = proRubric && proRubric.enabled
+    ? Math.min(proRubric.percentage, sProjects.reduce((acc, p) => acc + (Number(p.percentageEarned) || 0), 0))
+    : 0;
 
   // 7. Portafolio
   const sPort = portfolioGrades.find(p => p.studentId === student.id);
