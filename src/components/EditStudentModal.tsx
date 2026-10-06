@@ -98,6 +98,17 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
       return;
     }
 
+    // Validar que la cédula no esté asignada a otro estudiante
+    const clean = idNumber.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+    const allStudents = await db.students.toArray();
+    const dup = allStudents.find(
+      s => s.id !== student.id && s.idNumber.replace(/[^0-9a-zA-Z]/g, '').toLowerCase() === clean
+    );
+    if (dup) {
+      alert(`No se puede modificar: La cédula ${idNumber} ya le pertenece a otro estudiante (${dup.firstLastName} ${dup.secondLastName || ''} ${dup.firstName}).`);
+      return;
+    }
+
     await db.students.update(student.id, {
       idNumber: idNumber.trim(),
       firstLastName: firstLastName.trim(),

@@ -40,7 +40,7 @@ export const ImportStudentsModal: React.FC<ImportStudentsModalProps> = ({
     setIsProcessing(true);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -92,7 +92,8 @@ export const ImportStudentsModal: React.FC<ImportStudentsModalProps> = ({
           colNombre = 3;
         }
 
-        const existingSet = new Set(existingStudents.map(s => s.idNumber.replace(/[^0-9a-zA-Z]/g, '')));
+        const allStudentsInDb = await db.students.toArray();
+        const existingSet = new Set(allStudentsInDb.map(s => s.idNumber.replace(/[^0-9a-zA-Z]/g, '').toLowerCase()));
         const fileSet = new Set<string>();
         const list: ParsedStudentRow[] = [];
 
@@ -119,8 +120,9 @@ export const ImportStudentsModal: React.FC<ImportStudentsModalProps> = ({
             }
           }
 
-          const isDuplicate = existingSet.has(cleanId) || fileSet.has(cleanId);
-          fileSet.add(cleanId);
+          const normalizedId = cleanId.toLowerCase();
+          const isDuplicate = existingSet.has(normalizedId) || fileSet.has(normalizedId);
+          fileSet.add(normalizedId);
 
           const isValid = !!(cleanId && (nom || a1));
 
@@ -132,7 +134,7 @@ export const ImportStudentsModal: React.FC<ImportStudentsModalProps> = ({
             isValid,
             isDuplicate,
             statusNote: isDuplicate
-              ? 'Cédula ya existe en el grupo'
+              ? 'Cédula ya registrada en el sistema'
               : !isValid
               ? 'Faltan datos requeridos'
               : 'Listo para importar'

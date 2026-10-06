@@ -9,6 +9,7 @@
   --primary-500: #6366f1;
   --primary-600: #4f46e5;
   --primary-700: #4338ca;
+  --primary-color: #4f46e5;
   --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
   --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
   --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);

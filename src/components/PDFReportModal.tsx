@@ -145,12 +145,13 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white'
+              color: 'white',
+              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)'
             }}>
               <Printer size={22} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>
                 Generar Reporte Oficial PDF
               </h3>
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -171,17 +172,19 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               <button
                 onClick={() => setReportType('INDIVIDUAL')}
                 style={{
-                  padding: '6px 14px',
+                  padding: '7px 14px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: reportType === 'INDIVIDUAL' ? 'var(--primary-color)' : 'transparent',
-                  color: reportType === 'INDIVIDUAL' ? 'white' : 'var(--text-muted)',
+                  background: reportType === 'INDIVIDUAL' ? '#4f46e5' : 'transparent',
+                  color: reportType === 'INDIVIDUAL' ? '#ffffff' : 'var(--text-main)',
                   fontSize: '0.82rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  boxShadow: reportType === 'INDIVIDUAL' ? '0 1px 4px rgba(79, 70, 229, 0.4)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <User size={15} />
@@ -190,17 +193,19 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               <button
                 onClick={() => setReportType('GRUPAL')}
                 style={{
-                  padding: '6px 14px',
+                  padding: '7px 14px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: reportType === 'GRUPAL' ? 'var(--primary-color)' : 'transparent',
-                  color: reportType === 'GRUPAL' ? 'white' : 'var(--text-muted)',
+                  background: reportType === 'GRUPAL' ? '#4f46e5' : 'transparent',
+                  color: reportType === 'GRUPAL' ? '#ffffff' : 'var(--text-main)',
                   fontSize: '0.82rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  boxShadow: reportType === 'GRUPAL' ? '0 1px 4px rgba(79, 70, 229, 0.4)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <Users size={15} />
@@ -216,7 +221,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                   padding: '8px 12px',
                   borderRadius: '8px',
                   border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-main)',
+                  background: 'var(--bg-card)',
                   color: 'var(--text-main)',
                   fontSize: '0.82rem',
                   fontWeight: 600,
@@ -224,7 +229,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 }}
               >
                 {students.map(st => (
-                  <option key={st.id} value={st.id}>
+                  <option key={st.id} value={st.id} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
                     {st.firstLastName} {st.secondLastName} {st.firstName}
                   </option>
                 ))}
@@ -239,8 +244,12 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 alignItems: 'center',
                 gap: '8px',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                border: 'none',
                 padding: '8px 16px',
-                fontWeight: 700
+                borderRadius: '8px',
+                fontWeight: 700,
+                cursor: 'pointer'
               }}
             >
               <Download size={16} />
@@ -249,7 +258,18 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
 
             <button
               onClick={onClose}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px' }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-main)',
+                cursor: 'pointer',
+                padding: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px'
+              }}
+              title="Cerrar"
             >
               <X size={22} />
             </button>
@@ -261,24 +281,39 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
           flex: 1,
           overflowY: 'auto',
           padding: '24px',
-          background: '#f8fafc',
-          color: '#0f172a'
+          background: 'var(--bg-main)',
+          color: 'var(--text-main)'
         }}>
           {/* ========================================================
               VISTA 1: FICHA INDIVIDUAL (VERTICAL / PORTRAIT)
              ======================================================== */}
-          {reportType === 'INDIVIDUAL' && selectedStudentData && (
+          {reportType === 'INDIVIDUAL' && selectedStudentData && (() => {
+            const cotWeight = config.rubrics.find(r => r.key === 'cotidiano')?.percentage || 0;
+            const tarWeight = config.rubrics.find(r => r.key === 'tareas')?.percentage || 0;
+            const evaWeight = config.rubrics.find(r => r.key === 'evaluaciones')?.percentage || 0;
+            const proWeight = config.rubrics.find(r => r.key === 'proyectos')?.percentage || 0;
+            const porWeight = config.rubrics.find(r => r.key === 'portafolio')?.percentage || 0;
+            const asisWeight = config.rubrics.find(r => r.key === 'asistencia')?.percentage || 0;
+
+            const cotNota = cotWeight > 0 ? (selectedStudentData.grades.cotidianoPts / cotWeight * 100).toFixed(1) : '100.0';
+            const tarNota = tarWeight > 0 ? (selectedStudentData.grades.tareasPts / tarWeight * 100).toFixed(1) : '100.0';
+            const evaNota = evaWeight > 0 ? (selectedStudentData.grades.evaluacionesPts / evaWeight * 100).toFixed(1) : '100.0';
+            const proNota = proWeight > 0 ? (selectedStudentData.grades.proyectosPts / proWeight * 100).toFixed(1) : '100.0';
+            const porNota = porWeight > 0 ? (selectedStudentData.grades.portafolioPts / porWeight * 100).toFixed(1) : '100.0';
+            const asisNota = asisWeight > 0 ? (selectedStudentData.grades.asistenciaPts / asisWeight * 100).toFixed(1) : '100.0';
+
+            return (
             <div
               className="pdf-printable-page"
               style={{
                 maxWidth: '780px',
                 margin: '0 auto',
-                background: 'white',
+                background: '#ffffff',
                 padding: '36px 42px',
                 borderRadius: '8px',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.06)',
                 fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-                color: '#1e293b'
+                color: '#0f172a'
               }}
             >
               {/* Encabezado Oficial MEP */}
@@ -288,13 +323,13 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 paddingBottom: '14px',
                 marginBottom: '18px'
               }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', color: '#475569', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', color: '#334155', textTransform: 'uppercase' }}>
                   REPÚBLICA DE COSTA RICA • MINISTERIO DE EDUCACIÓN PÚBLICA
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
                   {institutionName.toUpperCase()}
                 </div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563eb' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1d4ed8' }}>
                   INFORME DE RENDIMIENTO ACADÉMICO INDIVIDUAL • {periodName.toUpperCase()}
                 </div>
               </div>
@@ -304,11 +339,13 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 display: 'grid',
                 gridTemplateColumns: '1.2fr 1fr',
                 gap: '12px',
-                background: '#f1f5f9',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
                 padding: '12px 16px',
                 borderRadius: '6px',
                 marginBottom: '18px',
-                fontSize: '0.84rem'
+                fontSize: '0.84rem',
+                color: '#0f172a'
               }}>
                 <div>
                   <div><strong>Estudiante:</strong> {selectedStudentData.student.firstLastName} {selectedStudentData.student.secondLastName} {selectedStudentData.student.firstName}</div>
@@ -336,7 +373,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     <tr style={{ background: '#0f172a', color: 'white' }}>
                       <th style={{ padding: '8px 10px', textAlign: 'left', border: '1px solid #0f172a' }}>Componente Evaluativo</th>
                       <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '90px' }}>Valor %</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '100px' }}>Puntos Ganados</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '120px' }}>Calificación (1-100)</th>
                       <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '110px' }}>% Obtenido</th>
                     </tr>
                   </thead>
@@ -344,24 +381,26 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {/* Trabajo Cotidiano */}
                     <tr>
                       <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Trabajo Cotidiano</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'cotidiano')?.percentage || 0}%</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{selectedStudentData.grades.puntosCotidianoObtenidos}</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{cotWeight}%</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        {cotNota} <span style={{ fontSize: '0.74rem', color: '#64748b' }}>({selectedStudentData.grades.puntosCotidianoObtenidos} pts)</span>
+                      </td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.cotidianoPts}%</td>
                     </tr>
 
                     {/* Tareas */}
                     <tr>
                       <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Tareas</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'tareas')?.percentage || 0}%</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>—</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{tarWeight}%</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{tarNota}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.tareasPts}%</td>
                     </tr>
 
                     {/* Evaluaciones */}
                     <tr>
                       <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Evaluaciones (Pruebas / Exámenes)</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'evaluaciones')?.percentage || 0}%</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>—</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{evaWeight}%</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{evaNota}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.evaluacionesPts}%</td>
                     </tr>
 
@@ -369,8 +408,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {config.rubrics.some(r => r.key === 'proyectos' && r.percentage > 0) && (
                       <tr>
                         <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Proyecto Escolar</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'proyectos')?.percentage || 0}%</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>—</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{proWeight}%</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{proNota}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.proyectosPts}%</td>
                       </tr>
                     )}
@@ -379,8 +418,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {config.rubrics.some(r => r.key === 'portafolio' && r.percentage > 0) && (
                       <tr>
                         <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Portafolio de Evidencias</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'portafolio')?.percentage || 0}%</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>—</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{porWeight}%</td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{porNota}</td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.portafolioPts}%</td>
                       </tr>
                     )}
@@ -388,8 +427,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {/* Asistencia */}
                     <tr>
                       <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Asistencia y Puntualidad</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{config.rubrics.find(r => r.key === 'asistencia')?.percentage || 0}%</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>—</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{asisWeight}%</td>
+                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{asisNota}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.asistenciaPts}%</td>
                     </tr>
 
@@ -439,26 +478,26 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                   fontSize: '0.8rem'
                 }}>
                   <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '4px', background: '#f8fafc' }}>
-                    <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Total Lecciones</div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem' }}>{selectedStudentData.grades.totalLessons}</div>
+                    <div style={{ color: '#334155', fontWeight: 600, fontSize: '0.7rem' }}>Total Lecciones</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{selectedStudentData.grades.totalLessons}</div>
                   </div>
                   <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '4px', background: '#f8fafc' }}>
-                    <div style={{ color: '#16a34a', fontSize: '0.7rem' }}>Presentes</div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>
+                    <div style={{ color: '#15803d', fontWeight: 700, fontSize: '0.7rem' }}>Presentes</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#15803d' }}>
                       {Math.max(0, selectedStudentData.grades.totalLessons - (selectedStudentData.grades.unexcusedAbsences + selectedStudentData.grades.excusedAbsences + selectedStudentData.grades.lessonEscapes))}
                     </div>
                   </div>
                   <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '4px', background: '#f8fafc' }}>
-                    <div style={{ color: '#dc2626', fontSize: '0.7rem' }}>Ausencias Injust.</div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#dc2626' }}>{selectedStudentData.grades.unexcusedAbsences}</div>
+                    <div style={{ color: '#b91c1c', fontWeight: 700, fontSize: '0.7rem' }}>Ausencias Injust.</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#b91c1c' }}>{selectedStudentData.grades.unexcusedAbsences}</div>
                   </div>
                   <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '4px', background: '#f8fafc' }}>
-                    <div style={{ color: '#3b82f6', fontSize: '0.7rem' }}>Ausencias Just.</div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#3b82f6' }}>{selectedStudentData.grades.excusedAbsences}</div>
+                    <div style={{ color: '#1d4ed8', fontWeight: 700, fontSize: '0.7rem' }}>Ausencias Just.</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1d4ed8' }}>{selectedStudentData.grades.excusedAbsences}</div>
                   </div>
                   <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '4px', background: '#f8fafc' }}>
-                    <div style={{ color: '#f59e0b', fontSize: '0.7rem' }}>Tardías</div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f59e0b' }}>
+                    <div style={{ color: '#b45309', fontWeight: 700, fontSize: '0.7rem' }}>Tardías</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#b45309' }}>
                       {selectedStudentData.grades.tardies}
                     </div>
                   </div>
@@ -472,12 +511,13 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 borderRadius: '6px',
                 marginBottom: '26px',
                 minHeight: '60px',
-                fontSize: '0.8rem'
+                fontSize: '0.8rem',
+                background: '#f8fafc'
               }}>
-                <div style={{ fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
                   Observaciones y Recomendaciones del Docente:
                 </div>
-                <div style={{ color: '#64748b', fontStyle: 'italic' }}>
+                <div style={{ color: '#334155', fontStyle: 'italic' }}>
                   {selectedStudentData.grades.condicion === 'Aprobado'
                     ? 'Excelente desempeño y constancia académica durante el periodo evaluado.'
                     : 'Se requiere mayor acompañamiento en casa y refuerzo en los componentes evaluativos.'}
@@ -495,22 +535,23 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               }}>
                 <div>
                   <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '6px', height: '35px' }}></div>
-                  <div style={{ fontWeight: 700 }}>{teacherName}</div>
-                  <div style={{ color: '#64748b' }}>Firma del Docente</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a' }}>{teacherName}</div>
+                  <div style={{ color: '#475569' }}>Firma del Docente</div>
                 </div>
                 <div>
                   <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '6px', height: '35px' }}></div>
-                  <div style={{ fontWeight: 700 }}>Padre / Encargado Legal</div>
-                  <div style={{ color: '#64748b' }}>Firma y Cédula</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Padre / Encargado Legal</div>
+                  <div style={{ color: '#475569' }}>Firma y Cédula</div>
                 </div>
                 <div>
                   <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '6px', height: '35px' }}></div>
-                  <div style={{ fontWeight: 700 }}>Dirección / Administración</div>
-                  <div style={{ color: '#64748b' }}>Sello de la Institución</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Dirección / Administración</div>
+                  <div style={{ color: '#475569' }}>Sello de la Institución</div>
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================
               VISTA 2: REPORTE GRUPAL (HORIZONTAL / LANDSCAPE)
@@ -521,12 +562,12 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               style={{
                 maxWidth: '1020px',
                 margin: '0 auto',
-                background: 'white',
+                background: '#ffffff',
                 padding: '28px 32px',
                 borderRadius: '8px',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.06)',
                 fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-                color: '#1e293b'
+                color: '#0f172a'
               }}
             >
               {/* Encabezado Oficial Grupal */}
@@ -539,17 +580,17 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 marginBottom: '14px'
               }}>
                 <div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', color: '#475569', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', color: '#334155', textTransform: 'uppercase' }}>
                     MINISTERIO DE EDUCACIÓN PÚBLICA • ACTA OFICIAL DE CALIFICACIONES
                   </div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>
                     {institutionName.toUpperCase()}
                   </div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2563eb' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1d4ed8' }}>
                     SÁBANA DE CALIFICACIONES • {periodName.toUpperCase()}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', fontSize: '0.82rem' }}>
+                <div style={{ textAlign: 'right', fontSize: '0.82rem', color: '#0f172a' }}>
                   <div><strong>Materia:</strong> {subject.name}</div>
                   <div><strong>Sección:</strong> Sección {group.sectionCode}</div>
                   <div><strong>Docente:</strong> {teacherName}</div>
@@ -576,8 +617,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {allComputed.map((item, idx) => {
                       const isPassing = item.grades.condicion === 'Aprobado';
                       return (
-                        <tr key={item.student.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                          <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', color: '#64748b' }}>{idx + 1}</td>
+                        <tr key={item.student.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc', color: '#0f172a' }}>
+                          <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', color: '#475569' }}>{idx + 1}</td>
                           <td style={{ padding: '5px 8px', border: '1px solid #cbd5e1', fontWeight: 600 }}>
                             {item.student.firstLastName} {item.student.secondLastName} {item.student.firstName}
                           </td>
@@ -596,7 +637,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                           <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
                             {item.grades.asistenciaPts}
                           </td>
-                          <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: isPassing ? '#16a34a' : '#dc2626' }}>
+                          <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: isPassing ? '#15803d' : '#b91c1c' }}>
                             {item.grades.notaFinal}
                           </td>
                           <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>
@@ -605,7 +646,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                               borderRadius: '4px',
                               fontSize: '0.72rem',
                               background: isPassing ? 'rgba(22, 163, 74, 0.12)' : 'rgba(220, 38, 38, 0.12)',
-                              color: isPassing ? '#16a34a' : '#dc2626'
+                              color: isPassing ? '#15803d' : '#b91c1c'
                             }}>
                               {item.grades.condicion}
                             </span>
@@ -624,7 +665,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 gap: '20px',
                 alignItems: 'end',
                 marginTop: '16px',
-                fontSize: '0.8rem'
+                fontSize: '0.8rem',
+                color: '#0f172a'
               }}>
                 {/* Cuadro Estadístico */}
                 <div style={{
@@ -633,14 +675,14 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                   padding: '10px 14px',
                   background: '#f8fafc'
                 }}>
-                  <div style={{ fontWeight: 800, marginBottom: '6px', fontSize: '0.82rem' }}>
+                  <div style={{ fontWeight: 800, marginBottom: '6px', fontSize: '0.82rem', color: '#0f172a' }}>
                     Resumen del Grupo:
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                     <div>Total Alumnos: <strong>{students.length}</strong></div>
                     <div>Promedio: <strong>{groupAverage}</strong></div>
-                    <div style={{ color: '#16a34a' }}>Aprobados: <strong>{passingCount}</strong></div>
-                    <div style={{ color: '#dc2626' }}>Aplazados: <strong>{failingCount}</strong></div>
+                    <div style={{ color: '#15803d' }}>Aprobados: <strong>{passingCount}</strong></div>
+                    <div style={{ color: '#b91c1c' }}>Aplazados: <strong>{failingCount}</strong></div>
                   </div>
                 </div>
 
@@ -648,13 +690,13 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', textAlign: 'center' }}>
                   <div>
                     <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '6px', height: '30px' }}></div>
-                    <div style={{ fontWeight: 700 }}>{teacherName}</div>
-                    <div style={{ color: '#64748b', fontSize: '0.72rem' }}>Docente a Cargo</div>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{teacherName}</div>
+                    <div style={{ color: '#475569', fontSize: '0.72rem' }}>Docente a Cargo</div>
                   </div>
                   <div>
                     <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '6px', height: '30px' }}></div>
-                    <div style={{ fontWeight: 700 }}>Dirección del Centro Educativo</div>
-                    <div style={{ color: '#64748b', fontSize: '0.72rem' }}>Firma y Sello Oficial</div>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>Dirección del Centro Educativo</div>
+                    <div style={{ color: '#475569', fontSize: '0.72rem' }}>Firma y Sello Oficial</div>
                   </div>
                 </div>
               </div>

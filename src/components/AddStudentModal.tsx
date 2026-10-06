@@ -26,6 +26,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
 
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [apiMessage, setApiMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   // Formato tipo título (capitalizar nombres)
   const formatWord = (str: string) => {
@@ -36,10 +37,37 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
       .join(' ');
   };
 
+  // Comprobar proactivamente si la cédula ya existe en la base de datos
+  const checkDuplicateCedula = async (rawCedula: string): Promise<boolean> => {
+    const clean = rawCedula.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+    if (!clean || clean.length < 5) {
+      setDuplicateWarning(null);
+      return false;
+    }
+
+    const allStudents = await db.students.toArray();
+    const existing = allStudents.find(
+      s => s.idNumber.replace(/[^0-9a-zA-Z]/g, '').toLowerCase() === clean
+    );
+
+    if (existing) {
+      setDuplicateWarning(
+        `Esta identificación (${rawCedula}) ya está registrada a nombre de: ${existing.firstLastName} ${existing.secondLastName || ''} ${existing.firstName}. No se pueden registrar cédulas duplicadas.`
+      );
+      return true;
+    } else {
+      setDuplicateWarning(null);
+      return false;
+    }
+  };
+
   // Consultar API de Hacienda de Costa Rica
   const handleQueryHacienda = async (overrideCedula?: string) => {
     const raw = overrideCedula || idNumber;
     const cleanCedula = raw.replace(/[^0-9]/g, '');
+
+    const isDup = await checkDuplicateCedula(cleanCedula);
+    if (isDup) return;
 
     if (cleanCedula.length < 9) {
       setApiMessage({
@@ -118,12 +146,10 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
       return;
     }
 
-    // Validar duplicado en el grupo
-    const exists = existingStudents.some(
-      s => s.idNumber.replace(/[^0-9a-zA-Z]/g, '') === cleanCedula.replace(/[^0-9a-zA-Z]/g, '')
-    );
-    if (exists) {
-      alert(`Ya existe un estudiante con la identificación ${cleanCedula} en este grupo.`);
+    // Validar duplicado en toda la base de datos
+    const isDup = await checkDuplicateCedula(cleanCedula);
+    if (isDup) {
+      alert(`No se puede guardar: Ya existe un estudiante registrado con la cédula ${cleanCedula} en el sistema.`);
       return;
     }
 
@@ -241,12 +267,14 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                 onChange={(e) => {
                   const val = e.target.value;
                   setIdNumber(val);
+                  checkDuplicateCedula(val);
                   // Si escribe 9 dígitos puros y no es extranjero, sugerir o auto-buscar
                   const clean = val.replace(/[^0-9]/g, '');
                   if (clean.length === 9 && !isForeigner && !firstName) {
                     handleQueryHacienda(clean);
                   }
                 }}
+                onBlur={() => checkDuplicateCedula(idNumber)}
                 style={{
                   flex: 1,
                   padding: '10px 12px',
@@ -262,7 +290,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleQueryHacienda()}
-                disabled={isLoadingApi || !idNumber.trim()}
+                disabled={isLoadingApi || !idNumber.trim() || !!duplicateWarning}
                 className="btn btn-primary"
                 style={{ padding: '0 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
                 title="Consultar nombre y apellidos en la API de Hacienda"
@@ -280,6 +308,27 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                 )}
               </button>
             </div>
+
+            {/* Aviso de Cédula Duplicada */}
+            {duplicateWarning && (
+              <div style={{
+                marginTop: '8px',
+                padding: '9px 12px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 600
+              }}>
+                <AlertTriangle size={17} style={{ flexShrink: 0 }} />
+                <span>{duplicateWarning}</span>
+              </div>
+            )}
+
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
               Tip: Al digitar los 9 dígitos se consulta automáticamente a la API oficial de Hacienda.
             </span>
@@ -423,7 +472,18 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="submit"
+              disabled={!!duplicateWarning || isLoadingApi}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: duplicateWarning ? 0.6 : 1,
+                cursor: duplicateWarning ? 'not-allowed' : 'pointer'
+              }}
+            >
               <CheckCircle2 size={16} />
               Guardar Estudiante
             </button>
