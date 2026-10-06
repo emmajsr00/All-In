@@ -62,6 +62,17 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     initialStudentId || students[0]?.id || ''
   );
+  // Observaciones y recomendaciones por estudiante
+  const [observations, setObservations] = useState<Record<string, string>>({});
+
+  const PRESET_OBSERVATIONS = [
+    'Excelente desempeño, dedicación y constancia académica durante el periodo evaluado.',
+    'Muy buen rendimiento académico y participación activa en el aula.',
+    'Desempeño satisfactorio. Se sugiere reforzar el cumplimiento de tareas y puntualidad.',
+    'Se requiere mayor acompañamiento en el hogar y refuerzo en los componentes evaluativos.',
+    'Demuestra gran potencial, se le motiva a ser más constante con la entrega de trabajos y lecciones.',
+    'Debe presentar estrategia de promoción / recuperación según normativa institucional vigente.'
+  ];
 
   // Filtrar sesiones y calificaciones pertenecientes al periodo actual
   const periodSessions = sessions.filter(s => s.periodId === periodId);
@@ -373,7 +384,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     <tr style={{ background: '#0f172a', color: 'white' }}>
                       <th style={{ padding: '8px 10px', textAlign: 'left', border: '1px solid #0f172a' }}>Componente Evaluativo</th>
                       <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '90px' }}>Valor %</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '120px' }}>Calificación (1-100)</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '110px' }}>Calificación</th>
                       <th style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #0f172a', width: '110px' }}>% Obtenido</th>
                     </tr>
                   </thead>
@@ -383,7 +394,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                       <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Trabajo Cotidiano</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>{cotWeight}%</td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                        {cotNota} <span style={{ fontSize: '0.74rem', color: '#64748b' }}>({selectedStudentData.grades.puntosCotidianoObtenidos} pts)</span>
+                        {cotNota}
                       </td>
                       <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 700 }}>{selectedStudentData.grades.cotidianoPts}%</td>
                     </tr>
@@ -435,7 +446,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                     {/* Fila Total y Condición */}
                     <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
                       <td colSpan={3} style={{ padding: '10px', border: '2px solid #0f172a', textAlign: 'right', fontSize: '0.9rem' }}>
-                        CALIFICACIÓN FINAL DEL PERIODO (BASE 100):
+                        CALIFICACIÓN FINAL DEL PERIODO:
                       </td>
                       <td style={{
                         padding: '10px',
@@ -505,24 +516,106 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
               </div>
 
               {/* Espacio para Observaciones del Docente */}
-              <div style={{
-                border: '1px solid #cbd5e1',
-                padding: '10px 14px',
-                borderRadius: '6px',
-                marginBottom: '26px',
-                minHeight: '60px',
-                fontSize: '0.8rem',
-                background: '#f8fafc'
-              }}>
-                <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
-                  Observaciones y Recomendaciones del Docente:
-                </div>
-                <div style={{ color: '#334155', fontStyle: 'italic' }}>
-                  {selectedStudentData.grades.condicion === 'Aprobado'
+              {(() => {
+                const currentObs = observations[selectedStudentId] ?? (
+                  selectedStudentData.grades.condicion === 'Aprobado'
                     ? 'Excelente desempeño y constancia académica durante el periodo evaluado.'
-                    : 'Se requiere mayor acompañamiento en casa y refuerzo en los componentes evaluativos.'}
-                </div>
-              </div>
+                    : 'Se requiere mayor acompañamiento en casa y refuerzo en los componentes evaluativos.'
+                );
+
+                return (
+                  <div style={{
+                    border: '1px solid #cbd5e1',
+                    padding: '12px 14px',
+                    borderRadius: '6px',
+                    marginBottom: '26px',
+                    minHeight: '65px',
+                    fontSize: '0.82rem',
+                    background: '#f8fafc'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '6px',
+                      flexWrap: 'wrap',
+                      gap: '8px'
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                        Observaciones y Recomendaciones del Docente:
+                      </div>
+                      {/* Selector de plantilla de observación rápida (no se imprime) */}
+                      <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>Elegir sugerencia:</span>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setObservations(prev => ({ ...prev, [selectedStudentId]: e.target.value }));
+                            }
+                          }}
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '3px 8px',
+                            borderRadius: '5px',
+                            border: '1px solid #cbd5e1',
+                            background: 'white',
+                            color: '#1e293b',
+                            cursor: 'pointer',
+                            maxWidth: '250px'
+                          }}
+                        >
+                          <option value="">-- Seleccionar sugerencia oficial --</option>
+                          {PRESET_OBSERVATIONS.map((preset, idx) => (
+                            <option key={idx} value={preset}>
+                              {preset.length > 50 ? preset.slice(0, 48) + '...' : preset}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Editor en pantalla (editable para el docente) */}
+                    <textarea
+                      className="no-print"
+                      value={currentObs}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setObservations(prev => ({ ...prev, [selectedStudentId]: val }));
+                      }}
+                      placeholder="Escriba o elija una observación personalizada para este estudiante..."
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        padding: '6px 10px',
+                        fontSize: '0.82rem',
+                        color: '#334155',
+                        background: '#ffffff',
+                        fontFamily: 'inherit',
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
+                        lineHeight: '1.4'
+                      }}
+                    />
+
+                    {/* Texto formateado para impresión oficial */}
+                    <div
+                      className="print-only"
+                      style={{
+                        display: 'none',
+                        color: '#334155',
+                        fontStyle: 'italic',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: '1.4'
+                      }}
+                    >
+                      {currentObs}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Firmas Oficiales */}
               <div style={{
@@ -556,7 +649,11 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
           {/* ========================================================
               VISTA 2: REPORTE GRUPAL (HORIZONTAL / LANDSCAPE)
              ======================================================== */}
-          {reportType === 'GRUPAL' && (
+          {reportType === 'GRUPAL' && (() => {
+            const hasProyectos = config.rubrics.some(r => r.key === 'proyectos' && r.percentage > 0);
+            const hasPortafolio = config.rubrics.some(r => r.key === 'portafolio' && r.percentage > 0);
+
+            return (
             <div
               className="pdf-printable-page"
               style={{
@@ -586,8 +683,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                   <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>
                     {institutionName.toUpperCase()}
                   </div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1d4ed8' }}>
-                    SÁBANA DE CALIFICACIONES • {periodName.toUpperCase()}
+                  <div style={{ fontSize: '1rem', fontWeight: 900, color: '#1d4ed8', letterSpacing: '0.04em' }}>
+                    CALIFICACIONES
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '0.82rem', color: '#0f172a' }}>
@@ -597,20 +694,26 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 </div>
               </div>
 
-              {/* Tabla Sábana de Estudiantes */}
+              {/* Tabla Sábana de Estudiantes con Nombres Completos */}
               <div style={{ overflowX: 'auto', marginBottom: '14px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
                     <tr style={{ background: '#0f172a', color: 'white' }}>
-                      <th style={{ padding: '6px 8px', width: '30px', textAlign: 'center', border: '1px solid #0f172a' }}>#</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid #0f172a' }}>Estudiante</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '95px' }}>Cédula</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', border: '1px solid #0f172a', width: '65px' }}>Cot. %</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', border: '1px solid #0f172a', width: '65px' }}>Tar. %</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', border: '1px solid #0f172a', width: '65px' }}>Prb. %</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', border: '1px solid #0f172a', width: '65px' }}>Asis. %</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '75px', background: '#1e293b' }}>NOTA</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '90px' }}>Condición</th>
+                      <th style={{ padding: '7px 8px', width: '30px', textAlign: 'center', border: '1px solid #0f172a' }}>#</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #0f172a' }}>Estudiante</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '95px' }}>Cédula</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '110px' }}>Trabajo Cotidiano</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '75px' }}>Tareas</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '95px' }}>Evaluaciones</th>
+                      {hasProyectos && (
+                        <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '85px' }}>Proyecto</th>
+                      )}
+                      {hasPortafolio && (
+                        <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '85px' }}>Portafolio</th>
+                      )}
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '85px' }}>Asistencia</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '95px', background: '#1e293b' }}>Calificación Final</th>
+                      <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid #0f172a', width: '95px' }}>Condición</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -626,16 +729,26 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                             {item.student.idNumber}
                           </td>
                           <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                            {item.grades.cotidianoPts}
+                            {item.grades.cotidianoPts}%
                           </td>
                           <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                            {item.grades.tareasPts}
+                            {item.grades.tareasPts}%
                           </td>
                           <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                            {item.grades.evaluacionesPts}
+                            {item.grades.evaluacionesPts}%
                           </td>
+                          {hasProyectos && (
+                            <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                              {item.grades.proyectosPts}%
+                            </td>
+                          )}
+                          {hasPortafolio && (
+                            <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                              {item.grades.portafolioPts}%
+                            </td>
+                          )}
                           <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                            {item.grades.asistenciaPts}
+                            {item.grades.asistenciaPts}%
                           </td>
                           <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: isPassing ? '#15803d' : '#b91c1c' }}>
                             {item.grades.notaFinal}
@@ -701,7 +814,8 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>
