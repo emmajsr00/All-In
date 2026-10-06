@@ -7,7 +7,15 @@ export default defineConfig({
     port: 5173,
     host: true,
     watch: {
-      ignored: ['**/*.tmp', '**/~$*', '**/.git/**']
+      ignored: [
+        '**/asw-*',
+        '**/unp*',
+        '**/*.tmp',
+        '**/*.xlsm',
+        '**/~$*',
+        '**/.git/**',
+        '**/dist/**'
+      ]
     }
   }
 });
