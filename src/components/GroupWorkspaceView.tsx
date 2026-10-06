@@ -26,7 +26,8 @@ import {
   Filter,
   FileDown,
   Calendar,
-  Award
+  Award,
+  UserPlus
 } from 'lucide-react';
 import type {
   Group,
@@ -58,6 +59,9 @@ import {
 } from '../utils/excelExport';
 import { db } from '../db';
 import { PeriodDatesModal } from './PeriodDatesModal';
+import { AddStudentModal } from './AddStudentModal';
+import { ImportStudentsModal } from './ImportStudentsModal';
+
 
 
 interface GroupWorkspaceViewProps {
@@ -152,6 +156,11 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPercentage, setNewItemPercentage] = useState<number>(5);
   const [newItemTotalPoints, setNewItemTotalPoints] = useState<number>(100);
+
+  // Modales de Estudiantes (Agregar Individual con Hacienda e Importar desde Excel)
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showImportStudentsModal, setShowImportStudentsModal] = useState(false);
+
 
   // Periodos Académicos y Detección Automática por Calendario
   const defaultPeriods: AcademicPeriodConfig[] = [
@@ -960,6 +969,22 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               </div>
 
               <button
+                onClick={() => setShowAddStudentModal(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <UserPlus size={14} color="#4f46e5" />
+                + Agregar Estudiante
+              </button>
+              <button
+                onClick={() => setShowImportStudentsModal(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <FileSpreadsheet size={14} color="#10b981" />
+                Importar Nómina (.xlsx)
+              </button>
+              <button
                 onClick={handleExportAnnualExcel}
                 className="btn btn-primary btn-sm"
                 style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
@@ -969,6 +994,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               </button>
             </div>
           </div>
+
 
           {/* Fila de Tarjetas Resumen de Rendimiento Anual */}
           <div style={{
@@ -1319,6 +1345,40 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       width: '220px'
                     }}
                   />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    onClick={() => setShowAddStudentModal(true)}
+                    className="btn btn-primary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.82rem',
+                      padding: '6px 14px'
+                    }}
+                    title="Agregar estudiante nuevo con autocompletado de Hacienda o registro manual"
+                  >
+                    <UserPlus size={15} />
+                    <span>+ Estudiante</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportStudentsModal(true)}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.82rem',
+                      padding: '6px 14px'
+                    }}
+                    title="Cargar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
+                  >
+                    <FileSpreadsheet size={15} color="#16a34a" />
+                    <span>Importar Nómina Excel</span>
+                  </button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '14px', alignItems: 'center', fontSize: '0.82rem' }}>
@@ -3441,6 +3501,32 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal para agregar estudiante individual con Hacienda / manual */}
+      {showAddStudentModal && (
+        <AddStudentModal
+          groupId={group.id}
+          existingStudents={students}
+          onClose={() => setShowAddStudentModal(false)}
+          onStudentAdded={() => {
+            onDataChanged();
+            setShowAddStudentModal(false);
+          }}
+        />
+      )}
+
+      {/* Modal para importar lista completa de estudiantes desde Excel (.xlsx/.xls) */}
+      {showImportStudentsModal && (
+        <ImportStudentsModal
+          groupId={group.id}
+          existingStudents={students}
+          onClose={() => setShowImportStudentsModal(false)}
+          onImportComplete={() => {
+            onDataChanged();
+            setShowImportStudentsModal(false);
+          }}
+        />
       )}
     </div>
   );
