@@ -27,7 +27,9 @@ import {
   FileDown,
   Calendar,
   Award,
-  UserPlus
+  UserPlus,
+  Users,
+  Edit3
 } from 'lucide-react';
 import type {
   Group,
@@ -61,6 +63,8 @@ import { db } from '../db';
 import { PeriodDatesModal } from './PeriodDatesModal';
 import { AddStudentModal } from './AddStudentModal';
 import { ImportStudentsModal } from './ImportStudentsModal';
+import { EditStudentModal } from './EditStudentModal';
+import { PDFReportModal } from './PDFReportModal';
 
 
 
@@ -86,6 +90,7 @@ interface GroupWorkspaceViewProps {
 
 type TabType =
   | 'REGISTRO_GENERAL'
+  | 'ESTUDIANTES'
   | 'ASISTENCIA'
   | 'COTIDIANO'
   | 'TAREAS'
@@ -160,6 +165,42 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   // Modales de Estudiantes (Agregar Individual con Hacienda e Importar desde Excel)
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showImportStudentsModal, setShowImportStudentsModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [showPDFReportModal, setShowPDFReportModal] = useState(false);
+
+  // Función para eliminar un estudiante de TODOS los registros (igual a Control_Estudiantes.xlsm)
+  const handleDeleteStudent = (st: Student) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Eliminar Estudiante del Sistema',
+      message: `¿Desea eliminar al estudiante "${st.firstLastName} ${st.secondLastName || ''} ${st.firstName}" de TODOS los registros? Esta acción eliminará al estudiante y todas sus notas, asistencias y cotidianos de este grupo.`,
+      onConfirm: async () => {
+        try {
+          await db.students.delete(st.id);
+          const details = await db.sessionDetails.where('studentId').equals(st.id).toArray();
+          if (details.length > 0) {
+            await db.sessionDetails.bulkDelete(details.map(d => d.id));
+          }
+          const tg = await db.taskGrades.where('studentId').equals(st.id).toArray();
+          if (tg.length > 0) await db.taskGrades.bulkDelete(tg.map(t => t.id));
+
+          const eg = await db.examGrades.where('studentId').equals(st.id).toArray();
+          if (eg.length > 0) await db.examGrades.bulkDelete(eg.map(e => e.id));
+
+          const pg = await db.projectGrades.where('studentId').equals(st.id).toArray();
+          if (pg.length > 0) await db.projectGrades.bulkDelete(pg.map(p => p.id));
+
+          const pfg = await db.portfolioGrades.where('studentId').equals(st.id).toArray();
+          if (pfg.length > 0) await db.portfolioGrades.bulkDelete(pfg.map(p => p.id));
+
+          setConfirmModal(null);
+          onDataChanged();
+        } catch (err: any) {
+          alert('Error al eliminar estudiante: ' + (err?.message || err));
+        }
+      }
+    });
+  };
 
 
   // Periodos Académicos y Detección Automática por Calendario
@@ -753,6 +794,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   // Menú lateral ordenado según tus requerimientos
   const navMenuItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'REGISTRO_GENERAL', label: 'Registro General', icon: <FileSpreadsheet size={16} /> },
+    { id: 'ESTUDIANTES', label: 'Lista de Estudiantes', icon: <Users size={16} color="#6366f1" />, badge: `${students.length}` },
     { id: 'ASISTENCIA', label: 'Asistencia', icon: <CalendarCheck size={16} color="#4f46e5" />, badge: `${config.rubrics.find(r => r.key === 'asistencia')?.percentage || 5}%` },
     { id: 'COTIDIANO', label: 'Trabajo Cotidiano', icon: <Target size={16} color="#06b6d4" />, badge: `${config.rubrics.find(r => r.key === 'cotidiano')?.percentage || 25}%` },
     { id: 'TAREAS', label: 'Tareas', icon: <CheckSquare size={16} />, badge: `${tareasMaxWeight}%` },
@@ -900,10 +942,37 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={onOpenRubricsConfig} className="btn btn-secondary btn-sm">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={onOpenRubricsConfig} className="btn btn-secondary btn-sm" title="Personalizar porcentajes y rubros evaluativos">
             <SlidersHorizontal size={14} color="#6366f1" />
             Configurar Rubros
+          </button>
+          <button
+            onClick={() => setShowAddStudentModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+          >
+            <UserPlus size={14} color="#6366f1" />
+            + Estudiante
+          </button>
+          <button
+            onClick={() => setShowImportStudentsModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Importar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
+          >
+            <FileSpreadsheet size={14} color="#10b981" />
+            Importar Lista de Estudiantes
+          </button>
+          <button
+            onClick={() => setShowPDFReportModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Generar Ficha Individual o Reporte Grupal Oficial en PDF"
+          >
+            <Printer size={14} color="#ef4444" />
+            Reporte PDF
           </button>
           {selectedPeriod === 'CONSOLIDADO_ANUAL' ? (
             <button onClick={handleExportAnnualExcel} className="btn btn-primary btn-sm" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
@@ -1308,6 +1377,37 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
               )}
             </button>
           ))}
+
+          {/* Accesos rápidos de matrícula y reportes */}
+          <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <button
+              onClick={() => setShowAddStudentModal(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
+              title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+            >
+              <UserPlus size={14} color="#6366f1" />
+              <span>+ Estudiante</span>
+            </button>
+            <button
+              onClick={() => setShowImportStudentsModal(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
+              title="Cargar nómina oficial desde archivo Excel"
+            >
+              <FileSpreadsheet size={14} color="#10b981" />
+              <span>Importar Lista (.xlsx)</span>
+            </button>
+            <button
+              onClick={() => setShowPDFReportModal(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
+              title="Generar Ficha Individual o Reporte Grupal Oficial en PDF"
+            >
+              <Printer size={14} color="#ef4444" />
+              <span>Reporte Oficial PDF</span>
+            </button>
+          </div>
         </aside>
 
         {/* CONTENIDO PRINCIPAL DERECHO */}
@@ -1342,43 +1442,9 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       color: 'var(--text-main)',
                       fontSize: '0.85rem',
                       outline: 'none',
-                      width: '220px'
+                      width: '240px'
                     }}
                   />
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <button
-                    onClick={() => setShowAddStudentModal(true)}
-                    className="btn btn-primary"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '0.82rem',
-                      padding: '6px 14px'
-                    }}
-                    title="Agregar estudiante nuevo con autocompletado de Hacienda o registro manual"
-                  >
-                    <UserPlus size={15} />
-                    <span>+ Estudiante</span>
-                  </button>
-
-                  <button
-                    onClick={() => setShowImportStudentsModal(true)}
-                    className="btn btn-secondary"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '0.82rem',
-                      padding: '6px 14px'
-                    }}
-                    title="Cargar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
-                  >
-                    <FileSpreadsheet size={15} color="#16a34a" />
-                    <span>Importar Nómina Excel</span>
-                  </button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '14px', alignItems: 'center', fontSize: '0.82rem' }}>
@@ -1422,7 +1488,25 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                       >
                         <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontWeight: 600 }}>{idx + 1}</td>
                         <td style={{ padding: '10px 14px', fontWeight: 700 }}>
-                          {item.student.firstLastName} {item.student.secondLastName} {item.student.firstName}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <span>{item.student.firstLastName} {item.student.secondLastName} {item.student.firstName}</span>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.6 }} className="no-print">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingStudent(item.student); }}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                title="Editar estudiante"
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student); }}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444' }}
+                                title="Eliminar estudiante"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {item.student.idNumber}
@@ -1467,6 +1551,158 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              TAB: NÓMINA Y GESTIÓN DE ESTUDIANTES
+             ======================================================== */}
+          {activeTab === 'ESTUDIANTES' && (
+            <div className="glass-panel" style={{ overflow: 'hidden' }}>
+              <div style={{
+                padding: '16px 20px',
+                background: 'var(--bg-surface)',
+                borderBottom: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={20} color="#6366f1" />
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
+                      Nómina Oficial de Estudiantes ({students.length})
+                    </h3>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Administra los datos personales, adecuaciones curriculares y contactos del encargado legal
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Search size={15} color="#64748b" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre o cédula..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-main)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        width: '240px'
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => setShowAddStudentModal(true)}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px' }}
+                    title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+                  >
+                    <UserPlus size={15} />
+                    <span>+ Agregar Estudiante</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportStudentsModal(true)}
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px' }}
+                    title="Cargar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
+                  >
+                    <FileSpreadsheet size={15} color="#10b981" />
+                    <span>Importar Lista de Estudiantes</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabla de Estudiantes */}
+              <div style={{ overflowX: 'auto', maxHeight: '72vh' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10, borderBottom: '2px solid var(--border-subtle)' }}>
+                    <tr>
+                      <th style={{ padding: '12px 14px', width: '40px', color: 'var(--text-muted)' }}>#</th>
+                      <th style={{ padding: '12px 14px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', width: '130px' }}>Cédula / ID</th>
+                      <th style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>Apellidos y Nombres</th>
+                      <th style={{ padding: '12px 14px', color: 'var(--text-muted)', width: '180px' }}>Adecuación Curricular</th>
+                      <th style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>Contacto Encargado</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', width: '150px' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students
+                      .filter(s => {
+                        const term = searchTerm.toLowerCase();
+                        const fullName = `${s.firstLastName} ${s.secondLastName || ''} ${s.firstName}`.toLowerCase();
+                        return fullName.includes(term) || s.idNumber.toLowerCase().includes(term);
+                      })
+                      .map((st, idx) => {
+                        const accomBadge =
+                          st.accommodation === 'NON_SIGNIFICANT' ? { label: 'No Significativa', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)' } :
+                          st.accommodation === 'SIGNIFICANT' ? { label: 'Significativa', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' } :
+                          st.accommodation === 'ACCESS' ? { label: 'De Acceso', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' } :
+                          { label: 'Ninguna', color: '#64748b', bg: 'rgba(100, 116, 139, 0.1)' };
+
+                        return (
+                          <tr key={st.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '11px 14px', color: 'var(--text-muted)', fontWeight: 600 }}>{idx + 1}</td>
+                            <td style={{ padding: '11px 14px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-main)' }}>
+                              {st.idNumber}
+                            </td>
+                            <td style={{ padding: '11px 14px', fontWeight: 700 }}>
+                              {st.firstLastName} {st.secondLastName} {st.firstName}
+                            </td>
+                            <td style={{ padding: '11px 14px' }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: accomBadge.bg,
+                                color: accomBadge.color
+                              }}>
+                                {accomBadge.label}
+                              </span>
+                            </td>
+                            <td style={{ padding: '11px 14px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              {st.parentContact || '—'}
+                            </td>
+                            <td style={{ padding: '11px 14px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                <button
+                                  onClick={() => setEditingStudent(st)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}
+                                  title="Editar información del estudiante"
+                                >
+                                  <Edit3 size={13} color="#4f46e5" />
+                                  <span>Editar</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStudent(st)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#ef4444' }}
+                                  title="Eliminar estudiante de todos los registros"
+                                >
+                                  <Trash2 size={13} color="#ef4444" />
+                                  <span>Eliminar</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -3526,6 +3762,40 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             onDataChanged();
             setShowImportStudentsModal(false);
           }}
+        />
+      )}
+
+      {/* Modal para editar estudiante existente */}
+      {editingStudent && (
+        <EditStudentModal
+          student={editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onStudentUpdated={() => {
+            onDataChanged();
+            setEditingStudent(null);
+          }}
+        />
+      )}
+
+      {/* Modal para generar reportes oficiales en PDF (Individual y Grupal) */}
+      {showPDFReportModal && (
+        <PDFReportModal
+          institutionName={institutionName}
+          group={group}
+          subject={subject}
+          teacherName={teacherName}
+          periodId={selectedPeriod === 'CONSOLIDADO_ANUAL' ? 'I_PERIODO' : selectedPeriod}
+          periodName={selectedPeriod === 'CONSOLIDADO_ANUAL' ? 'Consolidado Anual' : selectedPeriod === 'I_PERIODO' ? 'I Periodo' : 'II Periodo'}
+          students={students}
+          config={config}
+          sessions={sessions}
+          sessionDetails={sessionDetails}
+          taskGrades={taskGrades}
+          examGrades={examGrades}
+          projectGrades={projectGrades}
+          portfolioGrades={portfolioGrades}
+          initialStudentId={selectedStudentId}
+          onClose={() => setShowPDFReportModal(false)}
         />
       )}
     </div>
