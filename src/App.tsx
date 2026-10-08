@@ -268,7 +268,7 @@ export const App: React.FC = () => {
             onDataChanged={loadAppData}
           />
         ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
-          /* VISTA 2: Sábana / Calificador / Workspace del Grupo */
+          /* VISTA 2: Calificaciones Grupales / Workspace del Grupo */
           <GroupWorkspaceView
             institutionName={currentInstitution?.name || 'ALL-IN'}
             userRole={currentUser.role}

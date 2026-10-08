@@ -57,7 +57,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
   initialStudentId,
   onClose
 }) => {
-  // Modo de exportación: INDIVIDUAL (Ficha individual vertical) o GRUPAL (Sábana horizontal)
+  // Modo de exportación: INDIVIDUAL (Ficha individual vertical) o GRUPAL (Reporte grupal horizontal)
   const [reportType, setReportType] = useState<'INDIVIDUAL' | 'GRUPAL'>('INDIVIDUAL');
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     initialStudentId || students[0]?.id || ''
@@ -694,7 +694,7 @@ export const PDFReportModal: React.FC<PDFReportModalProps> = ({
                 </div>
               </div>
 
-              {/* Tabla Sábana de Estudiantes con Nombres Completos */}
+              {/* Tabla de Calificaciones Grupales de Estudiantes */}
               <div style={{ overflowX: 'auto', marginBottom: '14px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>

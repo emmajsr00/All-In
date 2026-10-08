@@ -926,7 +926,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                               }}
                               onClick={() => onOpenGroupGradebook(asg)}
                               className="hover-lift"
-                              title={`Clic para abrir sábana de notas de ${sub?.name || 'la materia'}`}
+                              title={`Clic para abrir calificaciones de ${sub?.name || 'la materia'}`}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                 <span style={{
@@ -1196,7 +1196,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                               }}
                               onClick={() => onOpenGroupGradebook(asg)}
                               className="hover-lift"
-                              title={`Clic para abrir sábana de notas de ${sub?.name}`}
+                              title={`Clic para abrir calificaciones de ${sub?.name}`}
                             >
                               <div>
                                 <strong style={{ color: '#4f46e5' }}>
@@ -1323,7 +1323,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                     transition: 'all 0.2s ease'
                   }}
                   onClick={() => onOpenGroupGradebook(asg)}
-                  title={`Clic para inspeccionar la sábana de notas de ${subject?.name || 'la materia'}`}
+                  title={`Clic para inspeccionar calificaciones de ${subject?.name || 'la materia'}`}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
                     <div style={{ flex: '1 1 200px', minWidth: 0 }}>
@@ -1431,7 +1431,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <FileSpreadsheet size={15} color="#4f46e5" />
-                      Inspeccionar Sábana de Notas
+                      Ver Calificaciones Grupales
                     </span>
                     <ArrowRight size={14} />
                   </button>
@@ -2477,7 +2477,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
               >
                 <FileSpreadsheet size={15} />
-                <span>Reporte Grupal (Sábana de la Sección)</span>
+                <span>Reporte de Calificaciones Grupales</span>
               </button>
               <button
                 type="button"
@@ -2503,7 +2503,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
-                            Sábana General de Rendimiento Académico
+                            Reporte Consolidado de Calificaciones Grupales
                           </h4>
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                             Matrícula total: {repStudents.length} estudiantes • {repAssignments.length} asignaturas impartidas

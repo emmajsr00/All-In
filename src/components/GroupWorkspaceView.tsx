@@ -1014,7 +1014,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span className="badge" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', fontWeight: 800 }}>
-                  Sábana Anual Oficial
+                  Consolidado Anual Oficial
                 </span>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
                   Consolidado Anual de Calificaciones y Convocatorias (MEP)
@@ -2961,7 +2961,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     <div style={{ background: 'var(--bg-surface)', padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                       <h4 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <FileSpreadsheet size={18} color="#4f46e5" />
-                        Tabla General de Calificaciones (Sábana Individual):
+                        Tabla General de Calificaciones del Estudiante:
                       </h4>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                         <thead style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-subtle)' }}>
