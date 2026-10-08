@@ -141,7 +141,7 @@ export const App: React.FC = () => {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }}></div>
-        <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Cargando EduGrade Pro...</p>
+        <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Cargando ALL-IN...</p>
       </div>
     );
   }

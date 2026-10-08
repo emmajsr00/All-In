@@ -17,7 +17,7 @@ import type {
   ScheduleItem
 } from '../types';
 
-export class EduGradeDatabase extends Dexie {
+export class AllInDatabase extends Dexie {
   institutions!: Table<Institution, string>;
   users!: Table<User, string>;
   groups!: Table<Group, string>;
@@ -56,7 +56,7 @@ export class EduGradeDatabase extends Dexie {
   }
 }
 
-export const db = new EduGradeDatabase();
+export const db = new AllInDatabase();
 
 export async function seedDatabaseIfEmpty() {
   const count = await db.institutions.count();

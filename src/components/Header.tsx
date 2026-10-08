@@ -67,8 +67,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em' }}>
-                EduGrade <span style={{ color: '#4f46e5' }}>Pro</span>
+              <span style={{ fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>
+                ALL<span style={{ color: '#4f46e5' }}>-IN</span>
               </span>
               <span className="badge" style={{
                 background: currentInstitution.type === 'COLLEGE' ? 'rgba(79, 70, 229, 0.12)' : 'rgba(16, 185, 129, 0.12)',
