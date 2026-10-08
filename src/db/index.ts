@@ -61,6 +61,28 @@ export const db = new AllInDatabase();
 export async function seedDatabaseIfEmpty() {
   const count = await db.institutions.count();
   if (count > 0) {
+    // Asegurar existencia del usuario Desarrollador
+    const devUser = await db.users.where('email').equals('admin@allin.com').first();
+    if (!devUser) {
+      await db.users.add({
+        id: 'user-developer',
+        name: 'Emmanuel (Desarrollador ALL-IN)',
+        email: 'admin@allin.com',
+        password: 'admin',
+        role: 'DEVELOPER',
+        institutionId: 'inst-ctp-poas',
+        title: 'Desarrollador y Creador del Sistema'
+      });
+    }
+
+    // Asegurar contraseña por defecto en usuarios existentes
+    const currentUsers = await db.users.toArray();
+    for (const u of currentUsers) {
+      if (!u.password) {
+        await db.users.update(u.id, { password: u.role === 'DEVELOPER' ? 'admin' : '123' });
+      }
+    }
+
     // Migración ligera: asegurar que existan los periodos y datos de prueba de II periodo
     const configs = await db.evaluationConfigs.toArray();
     for (const c of configs) {
@@ -149,9 +171,19 @@ export async function seedDatabaseIfEmpty() {
   // 3. Usuarios de prueba
   const users: User[] = [
     {
+      id: 'user-developer',
+      name: 'Emmanuel (Desarrollador ALL-IN)',
+      email: 'admin@allin.com',
+      password: 'admin',
+      role: 'DEVELOPER',
+      institutionId: 'inst-ctp-poas',
+      title: 'Desarrollador y Creador del Sistema'
+    },
+    {
       id: 'user-hellen',
       name: 'Hellen María Rodríguez R.',
       email: 'hrodriguez@mep.go.cr',
+      password: '123',
       role: 'TEACHER',
       institutionId: 'inst-ctp-poas',
       title: 'Docente Especialidad Inglés'
@@ -160,6 +192,7 @@ export async function seedDatabaseIfEmpty() {
       id: 'user-director-carlos',
       name: 'Lic. Carlos Méndez A.',
       email: 'director.ctppoas@mep.go.cr',
+      password: '123',
       role: 'DIRECTOR',
       institutionId: 'inst-ctp-poas',
       title: 'Director Institucional'
@@ -168,6 +201,7 @@ export async function seedDatabaseIfEmpty() {
       id: 'user-marcos-indep',
       name: 'Prof. Marcos Varela Q.',
       email: 'marcos.tutor@gmail.com',
+      password: '123',
       role: 'TEACHER',
       institutionId: 'inst-indep-01',
       title: 'Docente y Tutor Particular'

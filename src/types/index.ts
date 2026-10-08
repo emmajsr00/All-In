@@ -11,12 +11,13 @@ export interface Institution {
   createdAt: string;
 }
 
-export type UserRole = 'SUPERADMIN' | 'DIRECTOR' | 'TEACHER';
+export type UserRole = 'DEVELOPER' | 'SUPERADMIN' | 'DIRECTOR' | 'ADMIN' | 'TEACHER';
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string;
   role: UserRole;
   institutionId: string;
   title?: string;

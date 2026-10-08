@@ -23,15 +23,23 @@ import { DirectorView } from './components/DirectorView';
 import { GroupWorkspaceView } from './components/GroupWorkspaceView';
 import { RubricsConfigModal } from './components/RubricsConfigModal';
 import { ScheduleModal } from './components/ScheduleModal';
+import { LoginView } from './components/LoginView';
+import { DeveloperView } from './components/DeveloperView';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  // Auth State
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    return localStorage.getItem('allin_auth_user_id');
+  });
+  const [isDeveloperPanelActive, setIsDeveloperPanelActive] = useState<boolean>(true);
+  const [selectedDevInstitutionId, setSelectedDevInstitutionId] = useState<string | null>(null);
+
   // Core entities
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allInstitutions, setAllInstitutions] = useState<Institution[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>('user-hellen');
   const [groups, setGroups] = useState<Group[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
@@ -105,25 +113,22 @@ export const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(prev => !prev);
 
-  // Active user and institution
-  const currentUser = allUsers.find(u => u.id === currentUserId) || allUsers[0];
-  const currentInstitution = allInstitutions.find(i => i.id === currentUser?.institutionId) || allInstitutions[0];
-
-  // Filter groups/assignments for current institution
-  const institutionGroups = groups.filter(g => g.institutionId === currentInstitution?.id);
-  const institutionSubjects = subjects.filter(s => s.institutionId === currentInstitution?.id);
-  const institutionAssignments = assignments.filter(a => {
-    const grp = groups.find(g => g.id === a.groupId);
-    return grp?.institutionId === currentInstitution?.id;
-  });
-  const institutionTeachers = allUsers.filter(u => u.institutionId === currentInstitution?.id && u.role === 'TEACHER');
-
-  const handleSaveRubricsConfig = async (updatedConfig: EvaluationConfig) => {
-    await db.evaluationConfigs.put(updatedConfig);
-    setEvaluationConfigs(prev => prev.map(c => c.id === updatedConfig.id ? updatedConfig : c));
+  const handleLogin = (user: User) => {
+    setCurrentUserId(user.id);
+    localStorage.setItem('allin_auth_user_id', user.id);
+    if (user.role === 'DEVELOPER') {
+      setIsDeveloperPanelActive(true);
+    }
   };
 
-  if (loading || !currentUser || !currentInstitution) {
+  const handleLogout = () => {
+    setCurrentUserId(null);
+    localStorage.removeItem('allin_auth_user_id');
+    setSelectedAssignment(null);
+    setIsDeveloperPanelActive(false);
+  };
+
+  if (loading) {
     return (
       <div style={{
         height: '100vh',
@@ -145,6 +150,40 @@ export const App: React.FC = () => {
       </div>
     );
   }
+
+  // Active user lookup
+  const currentUser = currentUserId ? allUsers.find(u => u.id === currentUserId) || null : null;
+
+  // Si no hay sesión iniciada, mostrar la pantalla de Login obligatoria
+  if (!currentUser) {
+    return (
+      <LoginView
+        allUsers={allUsers}
+        onLogin={handleLogin}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  // Active institution (Para Desarrollador puede ser la seleccionada o la primera; para otros, su institución asignada)
+  const currentInstitution = currentUser.role === 'DEVELOPER'
+    ? (allInstitutions.find(i => i.id === selectedDevInstitutionId) || allInstitutions[0])
+    : (allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0]);
+
+  // Filter groups/assignments for current institution
+  const institutionGroups = groups.filter(g => g.institutionId === currentInstitution?.id);
+  const institutionSubjects = subjects.filter(s => s.institutionId === currentInstitution?.id);
+  const institutionAssignments = assignments.filter(a => {
+    const grp = groups.find(g => g.id === a.groupId);
+    return grp?.institutionId === currentInstitution?.id;
+  });
+  const institutionTeachers = allUsers.filter(u => u.institutionId === currentInstitution?.id && u.role === 'TEACHER');
+
+  const handleSaveRubricsConfig = async (updatedConfig: EvaluationConfig) => {
+    await db.evaluationConfigs.put(updatedConfig);
+    setEvaluationConfigs(prev => prev.map(c => c.id === updatedConfig.id ? updatedConfig : c));
+  };
 
   // Active group and subject if in group workspace
   const activeGroup = selectedAssignment ? groups.find(g => g.id === selectedAssignment.groupId) : null;
@@ -180,19 +219,31 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Header with Multi-tenant Switcher */}
+      {/* Top Header */}
       <Header
         currentUser={currentUser}
         currentInstitution={currentInstitution}
         allUsers={allUsers}
         allInstitutions={allInstitutions}
-        onSwitchUser={(id) => {
-          setCurrentUserId(id);
+        onSwitchInstitution={(id) => {
+          setSelectedDevInstitutionId(id);
+          setIsDeveloperPanelActive(false);
           setSelectedAssignment(null);
         }}
+        onGoToDeveloperPanel={() => {
+          setIsDeveloperPanelActive(true);
+          setSelectedAssignment(null);
+        }}
+        onLogout={handleLogout}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
-        onNavigateHome={() => setSelectedAssignment(null)}
+        onNavigateHome={() => {
+          setSelectedAssignment(null);
+          if (currentUser.role === 'DEVELOPER') {
+            setIsDeveloperPanelActive(true);
+          }
+        }}
+        isDeveloperPanelActive={isDeveloperPanelActive}
       />
 
       {/* Main Content Area */}
@@ -203,21 +254,23 @@ export const App: React.FC = () => {
         margin: '0 auto',
         padding: selectedAssignment ? '14px 16px 60px' : '24px 20px 60px'
       }}>
-        {currentUser.role === 'DIRECTOR' ? (
-          <DirectorView
-            institutionName={currentInstitution.name}
-            groups={institutionGroups}
-            subjects={institutionSubjects}
-            assignments={institutionAssignments}
-            teachers={institutionTeachers}
+        {/* VISTA 1: Panel Desarrollador (Master) */}
+        {currentUser.role === 'DEVELOPER' && isDeveloperPanelActive && !selectedAssignment ? (
+          <DeveloperView
+            allInstitutions={allInstitutions}
+            allUsers={allUsers}
+            groups={groups}
             students={students}
-            evaluationConfigs={evaluationConfigs}
-            onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
+            onSelectInstitution={(instId) => {
+              setSelectedDevInstitutionId(instId);
+              setIsDeveloperPanelActive(false);
+            }}
+            onDataChanged={loadAppData}
           />
         ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
-          /* VISTA COMPLETA DEL GRUPO CON TODAS SUS PESTAÑAS */
+          /* VISTA 2: Sábana / Calificador / Workspace del Grupo */
           <GroupWorkspaceView
-            institutionName={currentInstitution.name}
+            institutionName={currentInstitution?.name || 'ALL-IN'}
             assignment={selectedAssignment}
             group={activeGroup}
             subject={activeSubject}
@@ -235,8 +288,23 @@ export const App: React.FC = () => {
             onOpenRubricsConfig={() => setRubricsConfigAssignment(selectedAssignment)}
             onDataChanged={loadAppData}
           />
+        ) : (currentUser.role === 'DIRECTOR' || currentUser.role === 'ADMIN' || (currentUser.role === 'DEVELOPER' && !isDeveloperPanelActive)) ? (
+          /* VISTA 3: Supervisión Directiva e Institucional */
+          <DirectorView
+            institutionId={currentInstitution.id}
+            institutionName={currentInstitution.name}
+            groups={institutionGroups}
+            subjects={institutionSubjects}
+            assignments={institutionAssignments}
+            teachers={institutionTeachers}
+            allUsers={allUsers}
+            students={students}
+            evaluationConfigs={evaluationConfigs}
+            onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
+            onDataChanged={loadAppData}
+          />
         ) : (
-          /* PANEL INICIAL DOCENTE */
+          /* VISTA 4: Panel Docente */
           <Dashboard
             currentUser={currentUser}
             currentInstitution={currentInstitution}
