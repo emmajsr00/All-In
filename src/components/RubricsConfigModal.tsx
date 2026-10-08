@@ -14,6 +14,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import type { EvaluationConfig, EvaluationRubricItem } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface RubricsConfigModalProps {
   config: EvaluationConfig;
@@ -35,6 +36,7 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
   const [periodWeight, setPeriodWeight] = useState<number>(config.periodWeight);
   const [isSaving, setIsSaving] = useState(false);
   const [newItemName, setNewItemName] = useState('');
+  const [showConfirmWarning, setShowConfirmWarning] = useState(false);
 
   // Calcular la suma de los rubros habilitados
   const totalPercentage = rubrics.reduce((sum, r) => (r.enabled ? sum + (Number(r.percentage) || 0) : sum), 0);
@@ -94,12 +96,7 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
     ]);
   };
 
-  const handleSave = async () => {
-    if (!is100Percent) {
-      if (!confirm(`La suma de los rubros da ${totalPercentage}%. Se recomienda que sume exactamente 100%. ¿Deseas guardar de todos modos?`)) {
-        return;
-      }
-    }
+  const executeSave = async () => {
     setIsSaving(true);
     try {
       await onSave({
@@ -112,6 +109,14 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!is100Percent) {
+      setShowConfirmWarning(true);
+      return;
+    }
+    executeSave();
   };
 
   return (
@@ -473,6 +478,18 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal Personalizado para Advertencia de Rubros */}
+      <ConfirmModal
+        isOpen={showConfirmWarning}
+        title="Suma de Rubros Distinta a 100%"
+        message={`La suma actual de los rubros habilitados da ${totalPercentage.toFixed(1)}%.\n\nSe recomienda que sume exactamente 100% para evitar inconsistencias en el cálculo oficial.\n\n¿Deseas guardar de todos modos?`}
+        type="warning"
+        confirmText="Guardar de Todos Modos"
+        cancelText="Revisar Porcentajes"
+        onConfirm={executeSave}
+        onClose={() => setShowConfirmWarning(false)}
+      />
     </div>
   );
 };

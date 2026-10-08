@@ -66,6 +66,7 @@ import { AddStudentModal } from './AddStudentModal';
 import { ImportStudentsModal } from './ImportStudentsModal';
 import { EditStudentModal } from './EditStudentModal';
 import { PDFReportModal } from './PDFReportModal';
+import { ConfirmModal } from './ConfirmModal';
 
 
 
@@ -3814,6 +3815,23 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
           portfolioGrades={portfolioGrades}
           initialStudentId={selectedStudentId}
           onClose={() => setShowPDFReportModal(false)}
+        />
+      )}
+
+      {/* Modal Personalizado de Confirmación */}
+      {confirmModal && confirmModal.isOpen && (
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type="danger"
+          confirmText="Eliminar Definitivamente"
+          cancelText="Cancelar"
+          onConfirm={() => {
+            confirmModal.onConfirm();
+            setConfirmModal(null);
+          }}
+          onClose={() => setConfirmModal(null)}
         />
       )}
     </div>
