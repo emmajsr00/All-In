@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Users,
@@ -30,7 +30,18 @@ import {
   FileText,
   Download
 } from 'lucide-react';
-import type { Group, Subject, TeacherAssignment, User, Student, EvaluationConfig, UserRole, InstitutionType } from '../types';
+import type {
+  Group,
+  Subject,
+  TeacherAssignment,
+  User,
+  Student,
+  EvaluationConfig,
+  UserRole,
+  InstitutionType,
+  ClassSession,
+  SessionStudentDetail
+} from '../types';
 import { db } from '../db';
 import { AddStudentModal } from './AddStudentModal';
 import { EditStudentModal } from './EditStudentModal';
@@ -237,6 +248,46 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   const [reportGroup, setReportGroup] = useState<Group | null>(null);
   const [sectionReportMode, setSectionReportMode] = useState<'GRUPAL' | 'INDIVIDUAL'>('GRUPAL');
   const [selectedReportStudentId, setSelectedReportStudentId] = useState<string>('');
+  const [reportSessions, setReportSessions] = useState<ClassSession[]>([]);
+  const [reportDetails, setReportDetails] = useState<SessionStudentDetail[]>([]);
+  const [reportCutoffMode, setReportCutoffMode] = useState<'AUTO' | 'P1_ONLY' | 'P2_IN_PROGRESS' | 'ANNUAL_CLOSED'>('AUTO');
+  const [grupalPeriodView, setGrupalPeriodView] = useState<'I_PERIODO' | 'II_PERIODO' | 'ANUAL'>('I_PERIODO');
+
+  // Cargar asistencias reales de la sección cuando se abre el reporte
+  useEffect(() => {
+    if (!reportGroup) {
+      setReportSessions([]);
+      setReportDetails([]);
+      return;
+    }
+    const groupAssignmentIds = assignments.filter(a => a.groupId === reportGroup.id).map(a => a.id);
+    if (groupAssignmentIds.length === 0) {
+      setReportSessions([]);
+      setReportDetails([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchAttendance = async () => {
+      try {
+        const sess = await db.classSessions.where('assignmentId').anyOf(groupAssignmentIds).toArray();
+        const sessIds = sess.map(s => s.id);
+        const dets = sessIds.length > 0
+          ? await db.sessionDetails.where('sessionId').anyOf(sessIds).toArray()
+          : [];
+        if (isMounted) {
+          setReportSessions(sess);
+          setReportDetails(dets);
+        }
+      } catch (err) {
+        console.error('Error al cargar asistencia para reporte:', err);
+      }
+    };
+    fetchAttendance();
+    return () => {
+      isMounted = false;
+    };
+  }, [reportGroup, assignments]);
 
   // Eliminar estudiante de una sección
   const handleDeleteStudent = (studentId: string, studentName: string) => {
@@ -2462,32 +2513,54 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               </div>
             </div>
 
-            {/* Mode Switch Tabs */}
+            {/* Mode Switch Tabs and Period Cutoff Controls */}
             <div style={{
               display: 'flex',
-              gap: '8px',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
               padding: '12px 24px',
               borderBottom: '1px solid var(--border-subtle)',
               background: 'var(--bg-main)'
             }}>
-              <button
-                type="button"
-                onClick={() => setSectionReportMode('GRUPAL')}
-                className={`btn btn-sm ${sectionReportMode === 'GRUPAL' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-              >
-                <FileSpreadsheet size={15} />
-                <span>Reporte de Calificaciones Grupales</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSectionReportMode('INDIVIDUAL')}
-                className={`btn btn-sm ${sectionReportMode === 'INDIVIDUAL' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-              >
-                <FileText size={15} />
-                <span>Boletín Individual por Estudiante (Multi-Materia)</span>
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSectionReportMode('GRUPAL')}
+                  className={`btn btn-sm ${sectionReportMode === 'GRUPAL' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Reporte de Calificaciones Grupales</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSectionReportMode('INDIVIDUAL')}
+                  className={`btn btn-sm ${sectionReportMode === 'INDIVIDUAL' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                >
+                  <FileText size={15} />
+                  <span>Boletín Individual por Estudiante (Multi-Materia)</span>
+                </button>
+              </div>
+
+              {/* Selector de Simulación / Modo de Corte de Periodos */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Corte del Periodo:</span>
+                <select
+                  value={reportCutoffMode}
+                  onChange={(e) => setReportCutoffMode(e.target.value as any)}
+                  className="input-field"
+                  style={{ padding: '5px 10px', fontSize: '0.8rem', borderRadius: '8px' }}
+                  title="Permite alternar entre la fecha actual o simular cortes de I Periodo / Cierre Anual"
+                >
+                  <option value="AUTO">📅 Automático según Fecha Actual</option>
+                  <option value="P1_ONLY">⏳ Corte Durante I Periodo (Solo I P)</option>
+                  <option value="P2_IN_PROGRESS">📝 Durante II Periodo (I P y II P en curso)</option>
+                  <option value="ANNUAL_CLOSED">🏆 Cierre Anual Completo (Calcula Anual)</option>
+                </select>
+              </div>
             </div>
 
             {/* Content Body */}
@@ -2497,10 +2570,20 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 const repAssignments = assignments.filter(a => a.groupId === reportGroup.id);
                 const repGuide = teachers.find(t => t.id === reportGroup.guideTeacherId);
 
+                // Determinar fechas y estado de periodos
+                const todayStr = new Date().toISOString().split('T')[0];
+                const sampleCfg = evaluationConfigs.find(c => repAssignments.some(a => a.id === c.assignmentId));
+                const p1EndDefault = sampleCfg?.periods?.find(p => p.periodId === 'I_PERIODO')?.endDate || '2026-06-26';
+                const p2EndDefault = sampleCfg?.periods?.find(p => p.periodId === 'II_PERIODO')?.endDate || '2026-12-11';
+
+                const isP1Only = reportCutoffMode === 'P1_ONLY' || (reportCutoffMode === 'AUTO' && todayStr < p1EndDefault);
+                const isAnnualClosed = reportCutoffMode === 'ANNUAL_CLOSED' || (reportCutoffMode === 'AUTO' && todayStr >= p2EndDefault);
+                const isP2Active = reportCutoffMode === 'P2_IN_PROGRESS' || (reportCutoffMode === 'AUTO' && todayStr >= p1EndDefault && todayStr < p2EndDefault);
+
                 if (sectionReportMode === 'GRUPAL') {
                   return (
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
                             Reporte Consolidado de Calificaciones Grupales
@@ -2508,6 +2591,58 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                             Matrícula total: {repStudents.length} estudiantes • {repAssignments.length} asignaturas impartidas
                           </div>
+                        </div>
+
+                        {/* Filtro de Periodo para vista Grupal */}
+                        <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-surface)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <button
+                            type="button"
+                            onClick={() => setGrupalPeriodView('I_PERIODO')}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              background: grupalPeriodView === 'I_PERIODO' ? '#4f46e5' : 'transparent',
+                              color: grupalPeriodView === 'I_PERIODO' ? 'white' : 'var(--text-muted)'
+                            }}
+                          >
+                            I Periodo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGrupalPeriodView('II_PERIODO')}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              background: grupalPeriodView === 'II_PERIODO' ? '#4f46e5' : 'transparent',
+                              color: grupalPeriodView === 'II_PERIODO' ? 'white' : 'var(--text-muted)'
+                            }}
+                          >
+                            II Periodo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGrupalPeriodView('ANUAL')}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              background: grupalPeriodView === 'ANUAL' ? '#4f46e5' : 'transparent',
+                              color: grupalPeriodView === 'ANUAL' ? 'white' : 'var(--text-muted)'
+                            }}
+                          >
+                            Consolidado Anual
+                          </button>
                         </div>
                       </div>
 
@@ -2533,8 +2668,38 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           <tbody>
                             {repStudents.map((st, idx) => {
                               // Promedio simulado para vista de dirección
-                              const mockAverage = 75 + ((idx * 7) % 25);
-                              const isPassing = mockAverage >= 70;
+                              const mockAverageP1 = 75 + ((idx * 7) % 25);
+                              const mockAverageP2 = 78 + ((idx * 5) % 22);
+                              const mockAnnual = Math.round((mockAverageP1 * 0.5) + (mockAverageP2 * 0.5));
+
+                              let displayAverage: string | number = mockAverageP1;
+                              let isPassing = true;
+                              let condicionText = 'En Curso';
+
+                              if (grupalPeriodView === 'I_PERIODO') {
+                                displayAverage = mockAverageP1;
+                                isPassing = mockAverageP1 >= 70;
+                                condicionText = isPassing ? 'Aprobado' : 'Convocatoria';
+                              } else if (grupalPeriodView === 'II_PERIODO') {
+                                if (isP1Only) {
+                                  displayAverage = '-';
+                                  condicionText = 'Pendiente';
+                                } else {
+                                  displayAverage = mockAverageP2;
+                                  isPassing = mockAverageP2 >= 70;
+                                  condicionText = isPassing ? 'Aprobado' : 'Convocatoria';
+                                }
+                              } else {
+                                // Consolidado Anual
+                                if (isAnnualClosed) {
+                                  displayAverage = mockAnnual;
+                                  isPassing = mockAnnual >= 70;
+                                  condicionText = isPassing ? 'Aprobado' : 'Convocatoria';
+                                } else {
+                                  displayAverage = '-';
+                                  condicionText = 'En Curso';
+                                }
+                              }
 
                               return (
                                 <tr key={st.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -2544,23 +2709,35 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                                     {st.firstLastName} {st.secondLastName} {st.firstName}
                                   </td>
                                   {repAssignments.map((asg, asgIdx) => {
-                                    const gradeVal = Math.min(100, Math.max(60, mockAverage + ((asgIdx * 3) % 10) - 4));
+                                    const gradeP1 = Math.min(100, Math.max(60, mockAverageP1 + ((asgIdx * 3) % 10) - 4));
+                                    const gradeP2 = Math.min(100, Math.max(60, mockAverageP2 + ((asgIdx * 4) % 10) - 3));
+                                    const gradeAnual = Math.round((gradeP1 * 0.5) + (gradeP2 * 0.5));
+
+                                    let cellVal: string | number = gradeP1;
+                                    if (grupalPeriodView === 'I_PERIODO') {
+                                      cellVal = gradeP1;
+                                    } else if (grupalPeriodView === 'II_PERIODO') {
+                                      cellVal = isP1Only ? '-' : gradeP2;
+                                    } else {
+                                      cellVal = isAnnualClosed ? gradeAnual : '-';
+                                    }
+
                                     return (
                                       <td key={asg.id} style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>
-                                        {gradeVal}
+                                        {cellVal}
                                       </td>
                                     );
                                   })}
-                                  <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 800, color: isPassing ? '#10b981' : '#ef4444' }}>
-                                    {mockAverage}
+                                  <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 800, color: typeof displayAverage === 'number' && displayAverage < 70 ? '#ef4444' : '#10b981' }}>
+                                    {displayAverage}
                                   </td>
                                   <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                     <span className="badge" style={{
-                                      background: isPassing ? 'var(--badge-present-bg)' : 'var(--badge-unexcused-bg)',
-                                      color: isPassing ? 'var(--badge-present-text)' : 'var(--badge-unexcused-text)',
+                                      background: condicionText === 'Aprobado' ? 'var(--badge-present-bg)' : condicionText === 'Convocatoria' ? 'var(--badge-unexcused-bg)' : 'var(--bg-main)',
+                                      color: condicionText === 'Aprobado' ? 'var(--badge-present-text)' : condicionText === 'Convocatoria' ? 'var(--badge-unexcused-text)' : 'var(--text-muted)',
                                       fontSize: '0.72rem'
                                     }}>
-                                      {isPassing ? 'Aprobado' : 'Convocatoria'}
+                                      {condicionText}
                                     </span>
                                   </td>
                                 </tr>
@@ -2573,13 +2750,74 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   );
                 }
 
-                // Modo INDIVIDUAL
+                // Modo INDIVIDUAL (Boletín individual por estudiante con desglose multi-materia y ausencias)
                 const selectedStudent = repStudents.find(s => s.id === selectedReportStudentId) || repStudents[0];
+
+                // Récord de asistencia y ausencias por materia para el estudiante seleccionado
+                const studentAttendanceStats = repAssignments.map((asg, i) => {
+                  const sub = subjects.find(s => s.id === asg.subjectId);
+                  const tch = teachers.find(t => t.id === asg.teacherId);
+
+                  let asgSessions = reportSessions.filter(s => s.assignmentId === asg.id);
+                  if (isP1Only) {
+                    asgSessions = asgSessions.filter(s => s.periodId === 'I_PERIODO');
+                  }
+
+                  const asgSessIds = new Set(asgSessions.map(s => s.id));
+                  const studentDetailsForAsg = reportDetails.filter(
+                    d => d.studentId === selectedStudent?.id && asgSessIds.has(d.sessionId)
+                  );
+
+                  let totalLessons = asgSessions.reduce((acc, s) => acc + (Number(s.lessonsCount) || 1), 0);
+                  let unexcused = studentDetailsForAsg.filter(d => d.attendance === 'UNEXCUSED_ABSENCE').length;
+                  let excused = studentDetailsForAsg.filter(d => d.attendance === 'EXCUSED_ABSENCE').length;
+                  let tardies = studentDetailsForAsg.filter(d => d.attendance === 'TARDY').length;
+                  let escapes = studentDetailsForAsg.filter(d => d.attendance === 'LESSON_ESCAPE').length;
+                  let presents = studentDetailsForAsg.filter(d => d.attendance === 'PRESENT').length;
+
+                  // Datos representativos si aún no hay sesiones creadas en BD para esa materia
+                  if (totalLessons === 0) {
+                    totalLessons = 32 + ((i * 4) % 12);
+                    unexcused = (i === 1) ? 2 : (i === 3 ? 1 : 0);
+                    excused = (i % 2 === 0 && i > 0) ? 1 : 0;
+                    tardies = (i === 2) ? 2 : 0;
+                    presents = Math.max(0, totalLessons - (unexcused + excused + tardies));
+                  }
+
+                  const effectiveFaltas = unexcused + escapes + Math.floor(tardies / 2);
+                  const attendancePct = totalLessons > 0
+                    ? Math.max(0, Math.min(100, Math.round(((totalLessons - effectiveFaltas) / totalLessons) * 1000) / 10))
+                    : 100;
+
+                  const status: 'NORMAL' | 'ALERTA' | 'RIESGO' = attendancePct >= 85 ? 'NORMAL' : attendancePct >= 75 ? 'ALERTA' : 'RIESGO';
+
+                  return {
+                    asgId: asg.id,
+                    subjectName: sub?.name || 'Materia',
+                    teacherName: tch?.name || 'Docente',
+                    totalLessons,
+                    presents,
+                    unexcused,
+                    excused,
+                    tardies,
+                    attendancePct,
+                    status
+                  };
+                });
+
+                const totalLessonsSum = studentAttendanceStats.reduce((acc, s) => acc + s.totalLessons, 0);
+                const totalPresentsSum = studentAttendanceStats.reduce((acc, s) => acc + s.presents, 0);
+                const totalUnexcusedSum = studentAttendanceStats.reduce((acc, s) => acc + s.unexcused, 0);
+                const totalExcusedSum = studentAttendanceStats.reduce((acc, s) => acc + s.excused, 0);
+                const totalTardiesSum = studentAttendanceStats.reduce((acc, s) => acc + s.tardies, 0);
+                const globalAttendancePct = totalLessonsSum > 0
+                  ? Math.max(0, Math.min(100, Math.round(((totalLessonsSum - (totalUnexcusedSum + Math.floor(totalTardiesSum / 2))) / totalLessonsSum) * 1000) / 10))
+                  : 100;
 
                 return (
                   <div>
                     {/* Selector de estudiante */}
-                    <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                       <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>
                         Seleccionar Estudiante:
                       </label>
@@ -2610,7 +2848,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                             {institutionName}
                           </h2>
                           <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            Boletín Oficial de Calificaciones • Ciclo Lectivo 2026
+                            Boletín Oficial de Calificaciones y Asistencia • Ciclo Lectivo 2026
                           </div>
                         </div>
 
@@ -2643,53 +2881,209 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Tabla Multi-Materia */}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem', marginBottom: '30px' }}>
-                          <thead>
-                            <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-subtle)' }}>
-                              <th style={{ padding: '10px 12px' }}>Asignatura</th>
-                              <th style={{ padding: '10px 12px' }}>Docente</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center' }}>Nota Mínima</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center' }}>Nota Obtenida</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center' }}>Condición</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {repAssignments.map((asg, i) => {
-                              const sub = subjects.find(s => s.id === asg.subjectId);
-                              const tch = teachers.find(t => t.id === asg.teacherId);
-                              const simulatedGrade = 78 + ((i * 6) % 20);
-                              const pass = simulatedGrade >= 70;
+                        {/* TABLA 1: CALIFICACIONES POR MATERIA (I PERIODO, II PERIODO Y PROMEDIO ANUAL) */}
+                        <div style={{ marginBottom: '32px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Award size={18} color="#4f46e5" />
+                              Calificaciones por Asignatura
+                            </h3>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              {isP1Only
+                                ? '• I Periodo en Curso / Vigente'
+                                : isP2Active
+                                ? '• I Periodo Concluido • II Periodo en Curso'
+                                : '• Ciclo Lectivo Concluido'}
+                            </span>
+                          </div>
 
-                              return (
-                                <tr key={asg.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>{sub?.name || 'Materia'}</td>
-                                  <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{tch?.name || 'Docente'}</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>70</td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800, color: pass ? '#10b981' : '#ef4444' }}>
-                                    {simulatedGrade}
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                    <span className="badge" style={{
-                                      background: pass ? 'var(--badge-present-bg)' : 'var(--badge-unexcused-bg)',
-                                      color: pass ? 'var(--badge-present-text)' : 'var(--badge-unexcused-text)'
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                            <thead>
+                              <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-subtle)' }}>
+                                <th style={{ padding: '10px 12px' }}>Asignatura</th>
+                                <th style={{ padding: '10px 12px' }}>Docente</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'center' }}>Nota Mín.</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'center' }}>I Periodo (50%)</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'center' }}>II Periodo (50%)</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800 }}>Promedio Anual</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'center' }}>Condición</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {repAssignments.map((asg, i) => {
+                                const sub = subjects.find(s => s.id === asg.subjectId);
+                                const tch = teachers.find(t => t.id === asg.teacherId);
+                                const asgConfig = evaluationConfigs.find(c => c.assignmentId === asg.id);
+                                const p1Weight = asgConfig?.periods?.find(p => p.periodId === 'I_PERIODO')?.weightPercentage ?? (asgConfig?.periodWeight || 50);
+                                const p2Weight = asgConfig?.periods?.find(p => p.periodId === 'II_PERIODO')?.weightPercentage ?? (100 - p1Weight);
+                                const minPassingGrade = asgConfig?.passingGrade || 70;
+
+                                const gradeP1 = 78 + ((i * 6) % 20);
+                                const gradeP2 = 80 + ((i * 5 + 3) % 18);
+
+                                let p1Display: string | number = gradeP1;
+                                let p2Display: string | number = '-';
+                                let anualDisplay: string | number = '-';
+                                let condicionLabel = 'En Curso';
+                                let isPassing = true;
+
+                                if (isP1Only) {
+                                  // Si la fecha de I periodo no ha terminado solo muestra I P, II P y anual sería '-'
+                                  p1Display = gradeP1;
+                                  p2Display = '-';
+                                  anualDisplay = '-';
+                                  condicionLabel = 'En Curso';
+                                } else if (isP2Active) {
+                                  // II Periodo en curso: muestra I P y II P, anual es '-'
+                                  p1Display = gradeP1;
+                                  p2Display = gradeP2;
+                                  anualDisplay = '-';
+                                  condicionLabel = 'En Curso';
+                                } else if (isAnnualClosed) {
+                                  // Ciclo concluido: calcula promedio anual ponderado
+                                  p1Display = gradeP1;
+                                  p2Display = gradeP2;
+                                  const annualAvg = Math.round(((gradeP1 * p1Weight) + (gradeP2 * p2Weight)) / 100);
+                                  anualDisplay = annualAvg;
+                                  isPassing = annualAvg >= minPassingGrade;
+                                  condicionLabel = isPassing ? 'Aprobado' : 'Convocatoria';
+                                }
+
+                                return (
+                                  <tr key={asg.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <td style={{ padding: '10px 12px', fontWeight: 700 }}>{sub?.name || 'Materia'}</td>
+                                    <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{tch?.name || 'Docente'}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>{minPassingGrade}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700 }}>
+                                      {p1Display}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: p2Display !== '-' ? 700 : 400, color: p2Display === '-' ? 'var(--text-muted)' : 'inherit' }}>
+                                      {p2Display}
+                                    </td>
+                                    <td style={{
+                                      padding: '10px 12px',
+                                      textAlign: 'center',
+                                      fontWeight: 800,
+                                      fontFamily: 'var(--font-mono)',
+                                      color: anualDisplay === '-' ? 'var(--text-muted)' : (isPassing ? '#10b981' : '#ef4444')
                                     }}>
-                                      {pass ? 'Aprobado' : 'Convocatoria'}
+                                      {anualDisplay}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                      <span className="badge" style={{
+                                        background: condicionLabel === 'Aprobado' ? 'var(--badge-present-bg)' : condicionLabel === 'Convocatoria' ? 'var(--badge-unexcused-bg)' : 'var(--bg-main)',
+                                        color: condicionLabel === 'Aprobado' ? 'var(--badge-present-text)' : condicionLabel === 'Convocatoria' ? 'var(--badge-unexcused-text)' : 'var(--text-muted)',
+                                        fontSize: '0.72rem'
+                                      }}>
+                                        {condicionLabel}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* TABLA 2: RÉCORD DE ASISTENCIAS Y AUSENCIAS POR ASIGNATURA */}
+                        <div style={{ marginTop: '30px' }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '12px',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                          }}>
+                            <div>
+                              <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Calendar size={18} color="#4f46e5" />
+                                Récord de Asistencias y Ausencias por Asignatura
+                              </h3>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                Desglose institucional de lecciones impartidas, asistencias y ausencias registradas por cada materia.
+                              </div>
+                            </div>
+                            <span className="badge" style={{ background: 'var(--bg-main)', border: '1px solid var(--border-subtle)', fontSize: '0.74rem' }}>
+                              Normativa MEP: Máximo 15% de Ausencias Injustificadas
+                            </span>
+                          </div>
+
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                            <thead>
+                              <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-subtle)' }}>
+                                <th style={{ padding: '9px 12px' }}>Asignatura</th>
+                                <th style={{ padding: '9px 12px' }}>Docente</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Total Lecciones</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Presentes</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center', color: '#ef4444' }}>Ausencias Injust. (AI)</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center', color: '#f59e0b' }}>Ausencias Just. (AJ)</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Tardías (T)</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 800 }}>% Asistencia</th>
+                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {studentAttendanceStats.map((stat) => (
+                                <tr key={stat.asgId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                  <td style={{ padding: '9px 12px', fontWeight: 700 }}>{stat.subjectName}</td>
+                                  <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{stat.teacherName}</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{stat.totalLessons}</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{stat.presents}</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700, color: stat.unexcused > 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                                    {stat.unexcused}
+                                  </td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: stat.excused > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                                    {stat.excused}
+                                  </td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: stat.tardies > 0 ? '#eab308' : 'var(--text-muted)' }}>
+                                    {stat.tardies}
+                                  </td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                                    {stat.attendancePct}%
+                                  </td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                                    <span className="badge" style={{
+                                      background: stat.status === 'NORMAL' ? 'var(--badge-present-bg)' : stat.status === 'ALERTA' ? 'rgba(245, 158, 11, 0.15)' : 'var(--badge-unexcused-bg)',
+                                      color: stat.status === 'NORMAL' ? 'var(--badge-present-text)' : stat.status === 'ALERTA' ? '#f59e0b' : 'var(--badge-unexcused-text)',
+                                      fontSize: '0.72rem'
+                                    }}>
+                                      {stat.status === 'NORMAL' ? 'Regular' : stat.status === 'ALERTA' ? 'Apercibimiento' : 'Riesgo Pérdida'}
                                     </span>
                                   </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr style={{ background: 'var(--bg-main)', borderTop: '2px solid var(--border-subtle)', fontWeight: 800 }}>
+                                <td colSpan={2} style={{ padding: '10px 12px' }}>Totales Consolidados del Estudiante:</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{totalLessonsSum}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#10b981' }}>{totalPresentsSum}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444' }}>{totalUnexcusedSum}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#f59e0b' }}>{totalExcusedSum}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>{totalTardiesSum}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#4f46e5', fontFamily: 'var(--font-mono)' }}>{globalAttendancePct}%</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                  <span className="badge" style={{
+                                    background: globalAttendancePct >= 85 ? 'var(--badge-present-bg)' : 'var(--badge-unexcused-bg)',
+                                    color: globalAttendancePct >= 85 ? 'var(--badge-present-text)' : 'var(--badge-unexcused-text)',
+                                    fontSize: '0.72rem'
+                                  }}>
+                                    {globalAttendancePct >= 85 ? 'Asistencia Óptima' : 'Atención Requerida'}
+                                  </span>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
 
-                        {/* Firmas */}
+                        {/* Firmas Institucionales */}
                         <div style={{
                           display: 'grid',
                           gridTemplateColumns: 'repeat(3, 1fr)',
                           gap: '20px',
                           textAlign: 'center',
-                          marginTop: '40px',
+                          marginTop: '45px',
                           fontSize: '0.8rem',
                           color: 'var(--text-muted)'
                         }}>

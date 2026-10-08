@@ -13,7 +13,7 @@ import {
   Save,
   RotateCcw
 } from 'lucide-react';
-import type { EvaluationConfig, EvaluationRubricItem } from '../types';
+import type { EvaluationConfig, EvaluationRubricItem, AcademicPeriodConfig } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
 interface RubricsConfigModalProps {
@@ -33,7 +33,15 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
 }) => {
   const [rubrics, setRubrics] = useState<EvaluationRubricItem[]>(JSON.parse(JSON.stringify(config.rubrics)));
   const [passingGrade, setPassingGrade] = useState<number>(config.passingGrade);
-  const [periodWeight, setPeriodWeight] = useState<number>(config.periodWeight);
+
+  // Ponderación de periodos (Semestres I y II / Universidad 100%)
+  const existingP1 = config.periods?.find(p => p.periodId === 'I_PERIODO')?.weightPercentage ?? (config.periodWeight || 50);
+  const existingP2 = config.periods?.find(p => p.periodId === 'II_PERIODO')?.weightPercentage ?? (100 - (config.periodWeight || 50));
+  const isInitialUni = (config.periods && config.periods.length === 1 && config.periods[0].weightPercentage === 100) || config.periodWeight === 100;
+
+  const [isUniMode, setIsUniMode] = useState<boolean>(isInitialUni);
+  const [period1Weight, setPeriod1Weight] = useState<number>(existingP1);
+  const [period2Weight, setPeriod2Weight] = useState<number>(isInitialUni ? 0 : existingP2);
   const [isSaving, setIsSaving] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [showConfirmWarning, setShowConfirmWarning] = useState(false);
@@ -99,10 +107,38 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
   const executeSave = async () => {
     setIsSaving(true);
     try {
+      const updatedPeriods: AcademicPeriodConfig[] = isUniMode
+        ? [
+            {
+              periodId: 'I_PERIODO',
+              name: 'Ciclo / Semestre Único',
+              startDate: config.periods?.[0]?.startDate || '2026-01-15',
+              endDate: config.periods?.[0]?.endDate || '2026-12-15',
+              weightPercentage: 100
+            }
+          ]
+        : [
+            {
+              periodId: 'I_PERIODO',
+              name: 'I Periodo',
+              startDate: config.periods?.[0]?.startDate || '2026-02-09',
+              endDate: config.periods?.[0]?.endDate || '2026-07-03',
+              weightPercentage: period1Weight
+            },
+            {
+              periodId: 'II_PERIODO',
+              name: 'II Periodo',
+              startDate: config.periods?.[1]?.startDate || '2026-07-13',
+              endDate: config.periods?.[1]?.endDate || '2026-12-11',
+              weightPercentage: period2Weight
+            }
+          ];
+
       await onSave({
         ...config,
         passingGrade,
-        periodWeight,
+        periodWeight: isUniMode ? 100 : period1Weight,
+        periods: updatedPeriods,
         rubrics
       });
       onClose();
@@ -402,12 +438,236 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
 
           {/* Additional Institutional Settings */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            display: 'flex',
+            flexDirection: 'column',
             gap: '16px',
-            paddingTop: '12px',
+            paddingTop: '16px',
             borderTop: '1px solid var(--border-subtle)'
           }}>
+            {/* Configuración de Ponderación de Periodos / Semestres */}
+            <div style={{
+              background: 'var(--bg-surface)',
+              padding: '16px',
+              borderRadius: '12px',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>
+                    Ponderación Anual de Periodos / Semestres
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Configura el valor porcentual del I y II semestre para la nota anual, o activa 100% directo si es régimen universitario.
+                  </div>
+                </div>
+
+                {/* Switch / Toggle Colegio/Escuela vs Universidad */}
+                <div style={{
+                  display: 'flex',
+                  background: 'var(--bg-main)',
+                  padding: '3px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUniMode(false);
+                      setPeriod1Weight(50);
+                      setPeriod2Weight(50);
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: !isUniMode ? '#4f46e5' : 'transparent',
+                      color: !isUniMode ? 'white' : 'var(--text-muted)',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Colegio / Escuela (I y II Semestre)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUniMode(true);
+                      setPeriod1Weight(100);
+                      setPeriod2Weight(0);
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: isUniMode ? '#a855f7' : 'transparent',
+                      color: isUniMode ? 'white' : 'var(--text-muted)',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Universidad (100% Directo)
+                  </button>
+                </div>
+              </div>
+
+              {!isUniMode ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '6px' }}>
+                    {/* I Semestre / Periodo */}
+                    <div style={{ background: 'var(--bg-main)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                        Valor Porcentual I Semestre (%):
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newP1 = Math.max(0, period1Weight - 5);
+                            setPeriod1Weight(newP1);
+                            setPeriod2Weight(100 - newP1);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px' }}
+                          title="Disminuir 5%"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={period1Weight}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setPeriod1Weight(val);
+                            setPeriod2Weight(Math.max(0, 100 - val));
+                          }}
+                          style={{
+                            width: '80px',
+                            textAlign: 'center',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-surface)',
+                            color: 'var(--text-main)',
+                            fontWeight: 800,
+                            fontSize: '1rem'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newP1 = Math.min(100, period1Weight + 5);
+                            setPeriod1Weight(newP1);
+                            setPeriod2Weight(100 - newP1);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px' }}
+                          title="Aumentar 5%"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#4f46e5' }}>%</span>
+                      </div>
+                    </div>
+
+                    {/* II Semestre / Periodo */}
+                    <div style={{ background: 'var(--bg-main)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                        Valor Porcentual II Semestre (%):
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newP2 = Math.max(0, period2Weight - 5);
+                            setPeriod2Weight(newP2);
+                            setPeriod1Weight(100 - newP2);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px' }}
+                          title="Disminuir 5%"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={period2Weight}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setPeriod2Weight(val);
+                            setPeriod1Weight(Math.max(0, 100 - val));
+                          }}
+                          style={{
+                            width: '80px',
+                            textAlign: 'center',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-surface)',
+                            color: 'var(--text-main)',
+                            fontWeight: 800,
+                            fontSize: '1rem'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newP2 = Math.min(100, period2Weight + 5);
+                            setPeriod2Weight(newP2);
+                            setPeriod1Weight(100 - newP2);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px' }}
+                          title="Aumentar 5%"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#4f46e5' }}>%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '0.78rem',
+                    color: period1Weight + period2Weight === 100 ? '#10b981' : '#ef4444',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    {period1Weight + period2Weight === 100 ? (
+                      <span>✓ Suma equilibrada: {period1Weight}% (I P) + {period2Weight}% (II P) = 100% de la nota anual</span>
+                    ) : (
+                      <span>⚠ La suma de los semestres da {(period1Weight + period2Weight).toFixed(1)}%. Debe sumar exactamente 100%.</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(168, 85, 247, 0.1)',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  color: '#a855f7',
+                  fontWeight: 600
+                }}>
+                  🎓 Modo Universidad / Ciclo Único activo: La asignatura se evalúa al 100% directo dentro de este periodo.
+                </div>
+              )}
+            </div>
+
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
                 Nota Mínima para Aprobar
@@ -428,29 +688,6 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
                 <option value={70}>70 Puntos (Secundaria / Académico)</option>
                 <option value={80}>80 Puntos (Especialidad Técnica / CTP)</option>
                 <option value={65}>65 Puntos (Primaria I y II Ciclo)</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                Ponderación del Periodo
-              </label>
-              <select
-                value={periodWeight}
-                onChange={(e) => setPeriodWeight(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-main)',
-                  color: 'var(--text-main)',
-                  fontWeight: 600
-                }}
-              >
-                <option value={50}>50% (Semestral: I Semestre 50% - II Semestre 50%)</option>
-                <option value={33.3}>33.3% (Trimestral: 3 periodos iguales)</option>
-                <option value={100}>100% (Módulo Unificado Anual)</option>
               </select>
             </div>
           </div>
