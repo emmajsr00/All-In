@@ -219,7 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </span>
               </div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '4px' }}>
-                Sección {activeGroup?.sectionCode} — {activeSubject?.name}
+                {activeGroup?.groupName || `Sección ${activeGroup?.sectionCode}`} — {activeSubject?.name}
               </h2>
             </div>
           </div>
@@ -289,7 +289,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span className="badge" style={{ background: '#4f46e5', color: 'white', fontSize: '0.8rem', padding: '4px 10px' }}>
-                        Sección {group?.sectionCode || '12-1'}
+                        {group?.groupName || `Sección ${group?.sectionCode || '12-1'}`}
                       </span>
                       {asg.isGuia && (
                         <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.15)', color: '#7c3aed' }}>

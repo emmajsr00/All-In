@@ -21,10 +21,15 @@ import {
   Layers,
   Calendar,
   Check,
-  Eye
+  Eye,
+  Edit3,
+  UploadCloud
 } from 'lucide-react';
 import type { Group, Subject, TeacherAssignment, User, Student, EvaluationConfig, UserRole, InstitutionType } from '../types';
 import { db } from '../db';
+import { AddStudentModal } from './AddStudentModal';
+import { EditStudentModal } from './EditStudentModal';
+import { ImportStudentsModal } from './ImportStudentsModal';
 
 interface DirectorViewProps {
   institutionId: string;
@@ -91,6 +96,11 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   // Modal Ver Nómina de Estudiantes
   const [viewingGroup, setViewingGroup] = useState<Group | null>(null);
 
+  // Modales de Gestión de Estudiantes desde la Sección
+  const [importingGroupId, setImportingGroupId] = useState<string | null>(null);
+  const [addingStudentGroupId, setAddingStudentGroupId] = useState<string | null>(null);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+
   // Modal Registrar Personal (Docente o Admin)
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [staffName, setStaffName] = useState('');
@@ -99,6 +109,19 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   const [staffRole, setStaffRole] = useState<'TEACHER' | 'ADMIN'>('TEACHER');
   const [staffTitle, setStaffTitle] = useState('');
   const [staffError, setStaffError] = useState<string | null>(null);
+
+  // Eliminar estudiante de una sección
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
+    if (window.confirm(`¿Estás seguro de eliminar al estudiante "${studentName}" de esta sección? Esta acción no se puede deshacer.`)) {
+      try {
+        await db.students.delete(studentId);
+        if (onDataChanged) onDataChanged();
+      } catch (err) {
+        console.error('Error al eliminar estudiante:', err);
+        alert('Ocurrió un error al intentar eliminar al estudiante.');
+      }
+    }
+  };
 
   // ==================== HANDLERS ====================
 
@@ -519,17 +542,33 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                         <button
                           onClick={() => setViewingGroup(grp)}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '6px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          title="Ver nómina de estudiantes matriculados en este grupo"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          title="Gestionar nómina de estudiantes (Ver, Importar, Agregar, Editar)"
                         >
-                          <Eye size={14} color="#4f46e5" />
+                          <Users size={14} color="#4f46e5" />
                           <span>{sectionStudents.length} Alumnos</span>
+                        </button>
+                        <button
+                          onClick={() => setImportingGroupId(grp.id)}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '6px', color: '#10b981' }}
+                          title="Importar lista de estudiantes desde Excel a este grupo"
+                        >
+                          <UploadCloud size={15} />
+                        </button>
+                        <button
+                          onClick={() => setAddingStudentGroupId(grp.id)}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '6px', color: '#4f46e5' }}
+                          title="Agregar estudiante a este grupo"
+                        >
+                          <UserPlus size={15} />
                         </button>
                         <button
                           onClick={() => handleDeleteGroup(grp.id)}
                           className="btn btn-ghost btn-sm"
                           style={{ padding: '6px', color: '#ef4444' }}
-                          title="Eliminar Sección"
+                          title={`Eliminar ${unitSingular}`}
                         >
                           <Trash2 size={15} />
                         </button>
@@ -1463,7 +1502,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: VER NÓMINA COMPLETA DE ESTUDIANTES DE UNA SECCIÓN */}
+      {/* MODAL 4: VER Y GESTIONAR NÓMINA OFICIAL DE ESTUDIANTES */}
       {viewingGroup && (
         <div style={{
           position: 'fixed',
@@ -1484,25 +1523,30 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             border: '1px solid var(--border-subtle)',
             borderRadius: '16px',
             width: '100%',
-            maxWidth: '650px',
-            maxHeight: '85vh',
+            maxWidth: '850px',
+            maxHeight: '88vh',
             display: 'flex',
             flexDirection: 'column',
             padding: '24px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="badge" style={{ background: '#4f46e5', color: 'white' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 700 }}>
                     {viewingGroup.groupName || `${unitSingular} ${viewingGroup.sectionCode}`}
                   </span>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                  {viewingGroup.specialty && (
+                    <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                      {viewingGroup.specialty}
+                    </span>
+                  )}
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
                     Nómina Oficial de Estudiantes
                   </h3>
                 </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Esta lista completa de estudiantes es compartida por todos los docentes que imparten materias en este {unitSingular.toLowerCase()}.
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+                  Los estudiantes de esta sección <strong>se reflejan automáticamente en todas las materias</strong> asignadas a este grupo. Los docentes no necesitan registrarlos por separado.
                 </p>
               </div>
               <button onClick={() => setViewingGroup(null)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
@@ -1510,29 +1554,128 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               </button>
             </div>
 
+            {/* Barra de Acciones de la Nómina */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '10px 14px',
+              background: 'var(--bg-surface)',
+              borderRadius: '10px',
+              border: '1px solid var(--border-subtle)',
+              marginBottom: '14px',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Users size={16} color="#4f46e5" />
+                <span>Matrícula oficial: <strong style={{ color: '#4f46e5' }}>{students.filter(s => s.groupId === viewingGroup.id).length} estudiantes</strong></span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setImportingGroupId(viewingGroup.id)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
+                >
+                  <UploadCloud size={15} color="#10b981" />
+                  <span>Importar Lista (Excel)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingStudentGroupId(viewingGroup.id)}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
+                >
+                  <UserPlus size={15} />
+                  <span>Agregar Estudiante</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tabla de Nómina */}
             <div style={{ overflowY: 'auto', flex: 1, border: '1px solid var(--border-subtle)', borderRadius: '10px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
                     <th style={{ padding: '10px 14px', width: '40px' }}>#</th>
-                    <th style={{ padding: '10px 14px' }}>Cédula / Identificación</th>
+                    <th style={{ padding: '10px 14px', width: '140px' }}>Cédula</th>
                     <th style={{ padding: '10px 14px' }}>Nombre y Apellidos</th>
+                    <th style={{ padding: '10px 14px', width: '140px' }}>Adecuación</th>
+                    <th style={{ padding: '10px 14px', width: '90px', textAlign: 'right' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.filter(s => s.groupId === viewingGroup.id).map((st, idx) => (
-                    <tr key={st.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '8px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                      <td style={{ padding: '8px 14px', fontFamily: 'monospace' }}>{st.idNumber}</td>
-                      <td style={{ padding: '8px 14px', fontWeight: 600 }}>
-                        {st.firstLastName} {st.secondLastName} {st.firstName}
-                      </td>
-                    </tr>
-                  ))}
+                  {students.filter(s => s.groupId === viewingGroup.id).map((st, idx) => {
+                    const getAccomBadge = (type?: string) => {
+                      if (!type || type === 'NONE') return null;
+                      if (type === 'NON_SIGNIFICANT') return <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', fontSize: '0.7rem' }}>No Significativa</span>;
+                      if (type === 'SIGNIFICANT') return <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '0.7rem' }}>Significativa</span>;
+                      if (type === 'ACCESS') return <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontSize: '0.7rem' }}>Acceso</span>;
+                      return null;
+                    };
+
+                    return (
+                      <tr key={st.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '8px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 14px', fontFamily: 'monospace', fontWeight: 600 }}>{st.idNumber}</td>
+                        <td style={{ padding: '8px 14px', fontWeight: 600 }}>
+                          {st.firstLastName} {st.secondLastName} {st.firstName}
+                        </td>
+                        <td style={{ padding: '8px 14px' }}>
+                          {getAccomBadge(st.accommodation) || <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Ninguna</span>}
+                        </td>
+                        <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingStudent(st)}
+                              className="btn btn-ghost btn-sm"
+                              style={{ padding: '4px 6px', color: '#4f46e5' }}
+                              title="Editar estudiante"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStudent(st.id, `${st.firstLastName} ${st.secondLastName} ${st.firstName}`)}
+                              className="btn btn-ghost btn-sm"
+                              style={{ padding: '4px 6px', color: '#ef4444' }}
+                              title="Eliminar estudiante de esta sección"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {students.filter(s => s.groupId === viewingGroup.id).length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        No hay estudiantes registrados aún en la sección {viewingGroup.sectionCode}.
+                      <td colSpan={5} style={{ padding: '40px 20px', textAlign: 'center' }}>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: '14px', fontSize: '0.9rem' }}>
+                          Aún no hay estudiantes registrados en {viewingGroup.groupName || `${unitSingular} ${viewingGroup.sectionCode}`}.
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setImportingGroupId(viewingGroup.id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <UploadCloud size={15} color="#10b981" />
+                            Importar Nómina desde Excel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddingStudentGroupId(viewingGroup.id)}
+                            className="btn btn-primary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <UserPlus size={15} />
+                            Agregar Estudiante
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1540,11 +1683,8 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               </table>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Total matriculados: <strong>{students.filter(s => s.groupId === viewingGroup.id).length}</strong>
-              </span>
-              <button onClick={() => setViewingGroup(null)} className="btn btn-secondary btn-sm">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button type="button" onClick={() => setViewingGroup(null)} className="btn btn-secondary btn-sm">
                 Cerrar
               </button>
             </div>
@@ -1705,6 +1845,42 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* MODALES DE GESTIÓN DE ESTUDIANTES DIRECTOS */}
+      {importingGroupId && (
+        <ImportStudentsModal
+          groupId={importingGroupId}
+          existingStudents={students.filter(s => s.groupId === importingGroupId)}
+          onClose={() => setImportingGroupId(null)}
+          onImportComplete={(_count) => {
+            setImportingGroupId(null);
+            if (onDataChanged) onDataChanged();
+          }}
+        />
+      )}
+
+      {addingStudentGroupId && (
+        <AddStudentModal
+          groupId={addingStudentGroupId}
+          existingStudents={students.filter(s => s.groupId === addingStudentGroupId)}
+          onClose={() => setAddingStudentGroupId(null)}
+          onStudentAdded={(_newSt) => {
+            setAddingStudentGroupId(null);
+            if (onDataChanged) onDataChanged();
+          }}
+        />
+      )}
+
+      {editingStudent && (
+        <EditStudentModal
+          student={editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onStudentUpdated={() => {
+            setEditingStudent(null);
+            if (onDataChanged) onDataChanged();
+          }}
+        />
       )}
     </div>
   );
