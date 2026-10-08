@@ -20,6 +20,7 @@ import {
   GraduationCap,
   Layers,
   Calendar,
+  Clock,
   Check,
   Eye,
   Edit3,
@@ -40,13 +41,15 @@ import type {
   UserRole,
   InstitutionType,
   ClassSession,
-  SessionStudentDetail
+  SessionStudentDetail,
+  ScheduleItem
 } from '../types';
 import { db } from '../db';
 import { AddStudentModal } from './AddStudentModal';
 import { EditStudentModal } from './EditStudentModal';
 import { ImportStudentsModal } from './ImportStudentsModal';
 import { ConfirmModal } from './ConfirmModal';
+import { TeacherScheduleBuilder } from './TeacherScheduleBuilder';
 
 interface DirectorViewProps {
   institutionId: string;
@@ -59,6 +62,7 @@ interface DirectorViewProps {
   allUsers?: User[];
   students: Student[];
   evaluationConfigs: EvaluationConfig[];
+  schedules?: ScheduleItem[];
   onOpenGroupGradebook: (assignment: TeacherAssignment) => void;
   onDataChanged?: () => void;
 }
@@ -74,10 +78,11 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   allUsers = [],
   students,
   evaluationConfigs,
+  schedules = [],
   onOpenGroupGradebook,
   onDataChanged
 }) => {
-  const [activeTab, setActiveTab] = useState<'ACADEMIC' | 'SUPERVISION' | 'STAFF'>('ACADEMIC');
+  const [activeTab, setActiveTab] = useState<'ACADEMIC' | 'SUPERVISION' | 'STAFF' | 'SCHEDULES'>('ACADEMIC');
   const [academicViewMode, setAcademicViewMode] = useState<'BY_SECTION' | 'BY_TEACHER'>('BY_SECTION');
 
   const isUniversity = institutionType === 'UNIVERSITY';
@@ -615,6 +620,15 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
         >
           <Users size={16} />
           <span>Personal de la Institución ({institutionStaff.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('SCHEDULES')}
+          className={`btn ${activeTab === 'SCHEDULES' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+        >
+          <Clock size={16} />
+          <span>Creador de Horarios por Docente</span>
         </button>
       </div>
 
@@ -1553,6 +1567,19 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             </table>
           </div>
         </div>
+      )}
+
+      {/* PESTAÑA 4: CREADOR Y GESTIÓN DE HORARIOS POR DOCENTE */}
+      {activeTab === 'SCHEDULES' && (
+        <TeacherScheduleBuilder
+          teachers={teachers}
+          groups={groups}
+          subjects={subjects}
+          assignments={assignments}
+          schedules={schedules}
+          institutionName={institutionName}
+          onDataChanged={onDataChanged}
+        />
       )}
 
       {/* ========================================================================= */}

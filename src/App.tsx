@@ -302,6 +302,7 @@ export const App: React.FC = () => {
             allUsers={allUsers}
             students={students}
             evaluationConfigs={evaluationConfigs}
+            schedules={schedules}
             onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
             onDataChanged={loadAppData}
           />
@@ -319,6 +320,7 @@ export const App: React.FC = () => {
             onSelectAssignment={(asg) => setSelectedAssignment(asg)}
             onOpenRubricsConfig={(asg) => setRubricsConfigAssignment(asg)}
             onOpenSchedule={() => setIsScheduleOpen(true)}
+            onDataChanged={loadAppData}
           />
         )}
       </main>
