@@ -2756,7 +2756,6 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 // Récord de asistencia y ausencias por materia para el estudiante seleccionado
                 const studentAttendanceStats = repAssignments.map((asg, i) => {
                   const sub = subjects.find(s => s.id === asg.subjectId);
-                  const tch = teachers.find(t => t.id === asg.teacherId);
 
                   let asgSessions = reportSessions.filter(s => s.assignmentId === asg.id);
                   if (isP1Only) {
@@ -2773,7 +2772,6 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   let excused = studentDetailsForAsg.filter(d => d.attendance === 'EXCUSED_ABSENCE').length;
                   let tardies = studentDetailsForAsg.filter(d => d.attendance === 'TARDY').length;
                   let escapes = studentDetailsForAsg.filter(d => d.attendance === 'LESSON_ESCAPE').length;
-                  let presents = studentDetailsForAsg.filter(d => d.attendance === 'PRESENT').length;
 
                   // Datos representativos si aún no hay sesiones creadas en BD para esa materia
                   if (totalLessons === 0) {
@@ -2781,38 +2779,24 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                     unexcused = (i === 1) ? 2 : (i === 3 ? 1 : 0);
                     excused = (i % 2 === 0 && i > 0) ? 1 : 0;
                     tardies = (i === 2) ? 2 : 0;
-                    presents = Math.max(0, totalLessons - (unexcused + excused + tardies));
                   }
 
+                  // REGLA OFICIAL MEP (REA): 2 tardías = 1 injustificada, escapes = injustificada
                   const effectiveFaltas = unexcused + escapes + Math.floor(tardies / 2);
-                  const attendancePct = totalLessons > 0
-                    ? Math.max(0, Math.min(100, Math.round(((totalLessons - effectiveFaltas) / totalLessons) * 1000) / 10))
-                    : 100;
-
-                  const status: 'NORMAL' | 'ALERTA' | 'RIESGO' = attendancePct >= 85 ? 'NORMAL' : attendancePct >= 75 ? 'ALERTA' : 'RIESGO';
 
                   return {
                     asgId: asg.id,
                     subjectName: sub?.name || 'Materia',
-                    teacherName: tch?.name || 'Docente',
-                    totalLessons,
-                    presents,
-                    unexcused,
                     excused,
                     tardies,
-                    attendancePct,
-                    status
+                    escapes,
+                    rawUnexcused: unexcused,
+                    effectiveFaltas
                   };
                 });
 
-                const totalLessonsSum = studentAttendanceStats.reduce((acc, s) => acc + s.totalLessons, 0);
-                const totalPresentsSum = studentAttendanceStats.reduce((acc, s) => acc + s.presents, 0);
-                const totalUnexcusedSum = studentAttendanceStats.reduce((acc, s) => acc + s.unexcused, 0);
                 const totalExcusedSum = studentAttendanceStats.reduce((acc, s) => acc + s.excused, 0);
-                const totalTardiesSum = studentAttendanceStats.reduce((acc, s) => acc + s.tardies, 0);
-                const globalAttendancePct = totalLessonsSum > 0
-                  ? Math.max(0, Math.min(100, Math.round(((totalLessonsSum - (totalUnexcusedSum + Math.floor(totalTardiesSum / 2))) / totalLessonsSum) * 1000) / 10))
-                  : 100;
+                const totalEffectiveFaltasSum = studentAttendanceStats.reduce((acc, s) => acc + s.effectiveFaltas, 0);
 
                 return (
                   <div>
@@ -2985,70 +2969,54 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           </table>
                         </div>
 
-                        {/* TABLA 2: RÉCORD DE ASISTENCIAS Y AUSENCIAS POR ASIGNATURA */}
-                        <div style={{ marginTop: '30px' }}>
+                        {/* TABLA 2: RÉCORD DE AUSENCIAS POR ASIGNATURA */}
+                        <div style={{ marginTop: '28px' }}>
                           <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            marginBottom: '12px',
+                            marginBottom: '10px',
                             flexWrap: 'wrap',
                             gap: '8px'
                           }}>
                             <div>
                               <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Calendar size={18} color="#4f46e5" />
-                                Récord de Asistencias y Ausencias por Asignatura
+                                Récord de Ausencias por Asignatura
                               </h3>
                               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                Desglose institucional de lecciones impartidas, asistencias y ausencias registradas por cada materia.
+                                Resumen oficial de inasistencias acumuladas por materia en el ciclo lectivo.
                               </div>
                             </div>
                             <span className="badge" style={{ background: 'var(--bg-main)', border: '1px solid var(--border-subtle)', fontSize: '0.74rem' }}>
-                              Normativa MEP: Máximo 15% de Ausencias Injustificadas
+                              Regla MEP: 2 tardías = 1 injustificada • Escapes suman a injustificadas
                             </span>
                           </div>
 
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
                             <thead>
                               <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-subtle)' }}>
-                                <th style={{ padding: '9px 12px' }}>Asignatura</th>
-                                <th style={{ padding: '9px 12px' }}>Docente</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Total Lecciones</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Presentes</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center', color: '#ef4444' }}>Ausencias Injust. (AI)</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center', color: '#f59e0b' }}>Ausencias Just. (AJ)</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Tardías (T)</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 800 }}>% Asistencia</th>
-                                <th style={{ padding: '9px 12px', textAlign: 'center' }}>Estado</th>
+                                <th style={{ padding: '10px 14px' }}>Materia</th>
+                                <th style={{ padding: '10px 14px', textAlign: 'center', color: '#f59e0b' }}>Ausencias</th>
+                                <th style={{ padding: '10px 14px', textAlign: 'center', color: '#ef4444', fontWeight: 800 }}>Total de Injustificadas</th>
                               </tr>
                             </thead>
                             <tbody>
                               {studentAttendanceStats.map((stat) => (
                                 <tr key={stat.asgId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                  <td style={{ padding: '9px 12px', fontWeight: 700 }}>{stat.subjectName}</td>
-                                  <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{stat.teacherName}</td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{stat.totalLessons}</td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{stat.presents}</td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700, color: stat.unexcused > 0 ? '#ef4444' : 'var(--text-muted)' }}>
-                                    {stat.unexcused}
-                                  </td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: stat.excused > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                                  <td style={{ padding: '10px 14px', fontWeight: 700 }}>{stat.subjectName}</td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', color: stat.excused > 0 ? '#f59e0b' : 'var(--text-muted)', fontWeight: 600 }}>
                                     {stat.excused}
                                   </td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: stat.tardies > 0 ? '#eab308' : 'var(--text-muted)' }}>
-                                    {stat.tardies}
-                                  </td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-                                    {stat.attendancePct}%
-                                  </td>
-                                  <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                                     <span className="badge" style={{
-                                      background: stat.status === 'NORMAL' ? 'var(--badge-present-bg)' : stat.status === 'ALERTA' ? 'rgba(245, 158, 11, 0.15)' : 'var(--badge-unexcused-bg)',
-                                      color: stat.status === 'NORMAL' ? 'var(--badge-present-text)' : stat.status === 'ALERTA' ? '#f59e0b' : 'var(--badge-unexcused-text)',
-                                      fontSize: '0.72rem'
+                                      background: stat.effectiveFaltas > 0 ? 'var(--badge-unexcused-bg)' : 'transparent',
+                                      color: stat.effectiveFaltas > 0 ? 'var(--badge-unexcused-text)' : 'var(--text-muted)',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 800,
+                                      padding: '3px 12px'
                                     }}>
-                                      {stat.status === 'NORMAL' ? 'Regular' : stat.status === 'ALERTA' ? 'Apercibimiento' : 'Riesgo Pérdida'}
+                                      {stat.effectiveFaltas}
                                     </span>
                                   </td>
                                 </tr>
@@ -3056,20 +3024,19 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                             </tbody>
                             <tfoot>
                               <tr style={{ background: 'var(--bg-main)', borderTop: '2px solid var(--border-subtle)', fontWeight: 800 }}>
-                                <td colSpan={2} style={{ padding: '10px 12px' }}>Totales Consolidados del Estudiante:</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{totalLessonsSum}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#10b981' }}>{totalPresentsSum}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444' }}>{totalUnexcusedSum}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#f59e0b' }}>{totalExcusedSum}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>{totalTardiesSum}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#4f46e5', fontFamily: 'var(--font-mono)' }}>{globalAttendancePct}%</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                <td style={{ padding: '12px 14px' }}>Total General:</td>
+                                <td style={{ padding: '12px 14px', textAlign: 'center', color: '#f59e0b', fontSize: '0.95rem' }}>
+                                  {totalExcusedSum}
+                                </td>
+                                <td style={{ padding: '12px 14px', textAlign: 'center', color: '#ef4444', fontSize: '0.95rem' }}>
                                   <span className="badge" style={{
-                                    background: globalAttendancePct >= 85 ? 'var(--badge-present-bg)' : 'var(--badge-unexcused-bg)',
-                                    color: globalAttendancePct >= 85 ? 'var(--badge-present-text)' : 'var(--badge-unexcused-text)',
-                                    fontSize: '0.72rem'
+                                    background: totalEffectiveFaltasSum > 0 ? 'var(--badge-unexcused-bg)' : 'transparent',
+                                    color: totalEffectiveFaltasSum > 0 ? 'var(--badge-unexcused-text)' : 'var(--text-muted)',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 900,
+                                    padding: '4px 14px'
                                   }}>
-                                    {globalAttendancePct >= 85 ? 'Asistencia Óptima' : 'Atención Requerida'}
+                                    {totalEffectiveFaltasSum}
                                   </span>
                                 </td>
                               </tr>
