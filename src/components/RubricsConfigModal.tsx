@@ -5,6 +5,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Plus,
+  Minus,
+  ChevronUp,
+  ChevronDown,
   Trash2,
   HelpCircle,
   Save,
@@ -41,8 +44,25 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
     setRubrics(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
   };
 
-  const handlePercentageChange = (id: string, value: number) => {
-    setRubrics(prev => prev.map(r => r.id === id ? { ...r, percentage: Math.max(0, Math.min(100, value)) } : r));
+  const handlePercentageChange = (id: string, rawVal: string | number) => {
+    setRubrics(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      if (rawVal === '') {
+        return { ...r, percentage: 0 };
+      }
+      const parsed = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal);
+      const val = isNaN(parsed) ? 0 : Math.max(0, Math.min(100, Math.round(parsed * 10) / 10));
+      return { ...r, percentage: val };
+    }));
+  };
+
+  const handleStepPercentage = (id: string, delta: number) => {
+    setRubrics(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const current = Number(r.percentage) || 0;
+      const next = Math.max(0, Math.min(100, Math.round((current + delta) * 10) / 10));
+      return { ...r, percentage: next };
+    }));
   };
 
   const handleAddNewRubric = () => {
@@ -236,41 +256,96 @@ export const RubricsConfigModal: React.FC<RubricsConfigModalProps> = ({
                   </div>
                 </div>
 
-                {/* Percentage input & Slider */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {/* Controles de Porcentaje: Línea (slider), Flechas (+/-) e Input numérico */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {rubric.enabled && (
                     <input
                       type="range"
                       min="0"
                       max="100"
-                      step="5"
+                      step="1"
                       value={rubric.percentage}
                       onChange={(e) => handlePercentageChange(rubric.id, parseFloat(e.target.value))}
-                      style={{ width: '100px', cursor: 'pointer', accentColor: '#4f46e5' }}
+                      style={{ width: '110px', cursor: 'pointer', accentColor: '#4f46e5' }}
+                      title={`Ajustar porcentaje (${rubric.percentage}%)`}
                     />
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    {/* Flecha Abajo / Botón Menos */}
+                    <button
+                      type="button"
+                      disabled={!rubric.enabled || rubric.percentage <= 0}
+                      onClick={() => handleStepPercentage(rubric.id, -1)}
+                      className="btn btn-ghost btn-sm"
+                      style={{
+                        padding: '2px',
+                        height: '32px',
+                        width: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-main)',
+                        cursor: rubric.enabled && rubric.percentage > 0 ? 'pointer' : 'not-allowed',
+                        opacity: rubric.enabled && rubric.percentage > 0 ? 1 : 0.35
+                      }}
+                      title="Disminuir 1%"
+                    >
+                      <Minus size={13} />
+                    </button>
+
+                    {/* Input para escribir directamente con el teclado */}
                     <input
                       type="number"
                       disabled={!rubric.enabled}
                       min="0"
                       max="100"
+                      step="1"
                       value={rubric.enabled ? rubric.percentage : 0}
-                      onChange={(e) => handlePercentageChange(rubric.id, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handlePercentageChange(rubric.id, e.target.value)}
                       style={{
-                        width: '60px',
-                        padding: '6px 8px',
+                        width: '58px',
+                        height: '32px',
+                        padding: '4px 6px',
                         textAlign: 'center',
                         fontWeight: 700,
                         fontSize: '0.95rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        border: '1.5px solid var(--border-subtle)',
                         background: 'var(--bg-main)',
                         color: 'var(--text-main)',
                         outline: 'none'
                       }}
+                      title="Escribe directamente el número de porcentaje deseado"
                     />
-                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-muted)' }}>%</span>
+
+                    {/* Flecha Arriba / Botón Más */}
+                    <button
+                      type="button"
+                      disabled={!rubric.enabled || rubric.percentage >= 100}
+                      onClick={() => handleStepPercentage(rubric.id, 1)}
+                      className="btn btn-ghost btn-sm"
+                      style={{
+                        padding: '2px',
+                        height: '32px',
+                        width: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-main)',
+                        cursor: rubric.enabled && rubric.percentage < 100 ? 'pointer' : 'not-allowed',
+                        opacity: rubric.enabled && rubric.percentage < 100 ? 1 : 0.35
+                      }}
+                      title="Aumentar 1%"
+                    >
+                      <Plus size={13} />
+                    </button>
+
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-muted)', marginLeft: '2px' }}>%</span>
                   </div>
 
                   {rubric.id.startsWith('rubric-custom') && (

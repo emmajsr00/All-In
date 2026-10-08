@@ -271,6 +271,7 @@ export const App: React.FC = () => {
           /* VISTA 2: Sábana / Calificador / Workspace del Grupo */
           <GroupWorkspaceView
             institutionName={currentInstitution?.name || 'ALL-IN'}
+            userRole={currentUser.role}
             assignment={selectedAssignment}
             group={activeGroup}
             subject={activeSubject}

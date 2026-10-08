@@ -45,8 +45,9 @@ import type {
   PortfolioGrade,
   LearningIndicator,
   RubricSubItemDef,
+  RecoveryExamGrade,
   AcademicPeriodConfig,
-  RecoveryExamGrade
+  UserRole
 } from '../types';
 import {
   computeMEPStudentGrades,
@@ -70,6 +71,7 @@ import { PDFReportModal } from './PDFReportModal';
 
 interface GroupWorkspaceViewProps {
   institutionName: string;
+  userRole?: UserRole;
   assignment: TeacherAssignment;
   group: Group;
   subject: Subject;
@@ -104,6 +106,7 @@ type DossierViewMode = 'ALL' | 'ASISTENCIA' | 'COTIDIANO' | 'TAREAS' | 'EVALUACI
 
 export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   institutionName,
+  userRole,
   assignment,
   group,
   subject,
@@ -121,6 +124,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   onOpenRubricsConfig,
   onDataChanged
 }) => {
+  const isAdminOrDirector = userRole === 'DIRECTOR' || userRole === 'ADMIN' || userRole === 'DEVELOPER';
   const [activeTab, setActiveTab] = useState<TabType>('REGISTRO_GENERAL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
@@ -794,7 +798,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   // Menú lateral ordenado según tus requerimientos
   const navMenuItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'REGISTRO_GENERAL', label: 'Registro General', icon: <FileSpreadsheet size={16} /> },
-    { id: 'ESTUDIANTES', label: 'Lista de Estudiantes', icon: <Users size={16} color="#6366f1" />, badge: `${students.length}` },
+    ...(isAdminOrDirector ? [{ id: 'ESTUDIANTES' as TabType, label: 'Lista de Estudiantes', icon: <Users size={16} color="#6366f1" />, badge: `${students.length}` }] : []),
     { id: 'ASISTENCIA', label: 'Asistencia', icon: <CalendarCheck size={16} color="#4f46e5" />, badge: `${config.rubrics.find(r => r.key === 'asistencia')?.percentage || 5}%` },
     { id: 'COTIDIANO', label: 'Trabajo Cotidiano', icon: <Target size={16} color="#06b6d4" />, badge: `${config.rubrics.find(r => r.key === 'cotidiano')?.percentage || 25}%` },
     { id: 'TAREAS', label: 'Tareas', icon: <CheckSquare size={16} />, badge: `${tareasMaxWeight}%` },
@@ -947,24 +951,28 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
             <SlidersHorizontal size={14} color="#6366f1" />
             Configurar Rubros
           </button>
-          <button
-            onClick={() => setShowAddStudentModal(true)}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-            title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
-          >
-            <UserPlus size={14} color="#6366f1" />
-            + Estudiante
-          </button>
-          <button
-            onClick={() => setShowImportStudentsModal(true)}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-            title="Importar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
-          >
-            <FileSpreadsheet size={14} color="#10b981" />
-            Importar Lista de Estudiantes
-          </button>
+          {isAdminOrDirector && (
+            <>
+              <button
+                onClick={() => setShowAddStudentModal(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+              >
+                <UserPlus size={14} color="#6366f1" />
+                + Estudiante
+              </button>
+              <button
+                onClick={() => setShowImportStudentsModal(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                title="Importar lista de estudiantes desde archivo Excel (.xlsx / .xls)"
+              >
+                <FileSpreadsheet size={14} color="#10b981" />
+                Importar Lista de Estudiantes
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowPDFReportModal(true)}
             className="btn btn-secondary btn-sm"
@@ -1037,22 +1045,26 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 />
               </div>
 
-              <button
-                onClick={() => setShowAddStudentModal(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-              >
-                <UserPlus size={14} color="#4f46e5" />
-                + Agregar Estudiante
-              </button>
-              <button
-                onClick={() => setShowImportStudentsModal(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-              >
-                <FileSpreadsheet size={14} color="#10b981" />
-                Importar Nómina (.xlsx)
-              </button>
+              {isAdminOrDirector && (
+                <>
+                  <button
+                    onClick={() => setShowAddStudentModal(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    <UserPlus size={14} color="#4f46e5" />
+                    + Agregar Estudiante
+                  </button>
+                  <button
+                    onClick={() => setShowImportStudentsModal(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    <FileSpreadsheet size={14} color="#10b981" />
+                    Importar Nómina (.xlsx)
+                  </button>
+                </>
+              )}
               <button
                 onClick={handleExportAnnualExcel}
                 className="btn btn-primary btn-sm"
@@ -1380,24 +1392,28 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
 
           {/* Accesos rápidos de matrícula y reportes */}
           <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <button
-              onClick={() => setShowAddStudentModal(true)}
-              className="btn btn-secondary btn-sm"
-              style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
-              title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
-            >
-              <UserPlus size={14} color="#6366f1" />
-              <span>+ Estudiante</span>
-            </button>
-            <button
-              onClick={() => setShowImportStudentsModal(true)}
-              className="btn btn-secondary btn-sm"
-              style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
-              title="Cargar nómina oficial desde archivo Excel"
-            >
-              <FileSpreadsheet size={14} color="#10b981" />
-              <span>Importar Lista (.xlsx)</span>
-            </button>
+            {isAdminOrDirector && (
+              <>
+                <button
+                  onClick={() => setShowAddStudentModal(true)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
+                  title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+                >
+                  <UserPlus size={14} color="#6366f1" />
+                  <span>+ Estudiante</span>
+                </button>
+                <button
+                  onClick={() => setShowImportStudentsModal(true)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
+                  title="Cargar nómina oficial desde archivo Excel"
+                >
+                  <FileSpreadsheet size={14} color="#10b981" />
+                  <span>Importar Lista (.xlsx)</span>
+                </button>
+              </>
+            )}
             <button
               onClick={() => setShowPDFReportModal(true)}
               className="btn btn-secondary btn-sm"
@@ -1490,22 +1506,24 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                         <td style={{ padding: '10px 14px', fontWeight: 700 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                             <span>{item.student.firstLastName} {item.student.secondLastName} {item.student.firstName}</span>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.6 }} className="no-print">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditingStudent(item.student); }}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
-                                title="Editar estudiante"
-                              >
-                                <Edit3 size={13} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student); }}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444' }}
-                                title="Eliminar estudiante"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
+                            {isAdminOrDirector && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.6 }} className="no-print">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setEditingStudent(item.student); }}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                  title="Editar estudiante"
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student); }}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444' }}
+                                  title="Eliminar estudiante"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
