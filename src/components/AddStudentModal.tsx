@@ -201,7 +201,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 150,
+      zIndex: 2500,
       padding: '20px'
     }}>
       <div className="glass-panel" style={{

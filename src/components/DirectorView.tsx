@@ -114,6 +114,23 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
     }
     if (sectionSearchQuery.trim()) {
       const q = sectionSearchQuery.toLowerCase().trim();
+      const isNumericOnly = /^\d+$/.test(q);
+
+      if (isNumericOnly) {
+        // Cuando el usuario escribe solo números (ej: "12", "7", "8", "11"):
+        // Debe coincidir con el grado exacto o el inicio del código de sección (ej: "12-1", "12-2", "12")
+        // NO debe mostrar secciones de otro nivel (ej. "11-1") por materias o códigos secundarios.
+        const gradeMatch = grp.grade.toString() === q;
+        const codeStartsWith = grp.sectionCode.toLowerCase().startsWith(q);
+        const codePrefixMatch = grp.sectionCode.toLowerCase().split(/[-_.\s]/)[0] === q;
+        const groupNameHasNumber = grp.groupName
+          ? new RegExp(`\\b${q}\\b`, 'i').test(grp.groupName) || grp.groupName.toLowerCase().startsWith(q)
+          : false;
+
+        return gradeMatch || codeStartsWith || codePrefixMatch || groupNameHasNumber;
+      }
+
+      // Si busca por código compuesto (ej: "12-1", "7-2") o texto ("Inglés", "Contabilidad", docente)
       const codeMatch = grp.sectionCode.toLowerCase().includes(q);
       const nameMatch = grp.groupName ? grp.groupName.toLowerCase().includes(q) : false;
       const specMatch = grp.specialty ? grp.specialty.toLowerCase().includes(q) : false;
@@ -124,7 +141,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
       const subjectMatch = secAsgs.some(a => {
         const sub = subjects.find(s => s.id === a.subjectId);
         const tch = teachers.find(t => t.id === a.teacherId);
-        return (sub && (sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q))) ||
+        return (sub && sub.name.toLowerCase().includes(q)) ||
                (tch && tch.name.toLowerCase().includes(q));
       });
 
@@ -598,19 +615,24 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
                   {/* Buscador de secciones */}
-                  <div style={{ position: 'relative', flex: '1', minWidth: '260px' }}>
-                    <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+                    <Search size={18} color="#6366f1" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
                       type="text"
                       value={sectionSearchQuery}
                       onChange={e => setSectionSearchQuery(e.target.value)}
-                      placeholder={`Buscar por número de ${unitSingular.toLowerCase()} (ej. 7-1, 10-2), nombre, carrera, profesor guía o materia...`}
+                      placeholder={`Buscar ${unitSingular.toLowerCase()} (ej. 12, 10-1) o materia...`}
                       className="input-field"
                       style={{
                         width: '100%',
-                        paddingLeft: '36px',
-                        paddingRight: sectionSearchQuery ? '36px' : '14px',
-                        fontSize: '0.85rem'
+                        height: '44px',
+                        paddingLeft: '42px',
+                        paddingRight: sectionSearchQuery ? '38px' : '16px',
+                        fontSize: '0.9rem',
+                        borderRadius: '12px',
+                        border: '1.5px solid var(--border-subtle)',
+                        background: 'var(--bg-main)',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
                       }}
                     />
                     {sectionSearchQuery && (
@@ -619,7 +641,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                         onClick={() => setSectionSearchQuery('')}
                         style={{
                           position: 'absolute',
-                          right: '10px',
+                          right: '12px',
                           top: '50%',
                           transform: 'translateY(-50%)',
                           background: 'transparent',
@@ -630,7 +652,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                         }}
                         title="Borrar búsqueda"
                       >
-                        <X size={14} />
+                        <X size={15} />
                       </button>
                     )}
                   </div>
@@ -937,19 +959,24 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 flexWrap: 'wrap'
               }}>
                 {/* Buscador de docentes */}
-                <div style={{ position: 'relative', flex: '1', minWidth: '260px' }}>
-                  <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+                  <Search size={18} color="#6366f1" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                   <input
                     type="text"
                     value={teacherSearchQuery}
                     onChange={e => setTeacherSearchQuery(e.target.value)}
-                    placeholder="Buscar docente por nombre, correo, título o materia/sección que imparte..."
+                    placeholder="Buscar docente o materia impartida..."
                     className="input-field"
                     style={{
                       width: '100%',
-                      paddingLeft: '36px',
-                      paddingRight: teacherSearchQuery ? '36px' : '14px',
-                      fontSize: '0.85rem'
+                      height: '44px',
+                      paddingLeft: '42px',
+                      paddingRight: teacherSearchQuery ? '38px' : '16px',
+                      fontSize: '0.9rem',
+                      borderRadius: '12px',
+                      border: '1.5px solid var(--border-subtle)',
+                      background: 'var(--bg-main)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
                     }}
                   />
                   {teacherSearchQuery && (
@@ -958,7 +985,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       onClick={() => setTeacherSearchQuery('')}
                       style={{
                         position: 'absolute',
-                        right: '10px',
+                        right: '12px',
                         top: '50%',
                         transform: 'translateY(-50%)',
                         background: 'transparent',
@@ -969,7 +996,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       }}
                       title="Borrar búsqueda"
                     >
-                      <X size={14} />
+                      <X size={15} />
                     </button>
                   )}
                 </div>
