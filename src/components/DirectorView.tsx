@@ -23,7 +23,9 @@ import {
   Check,
   Eye,
   Edit3,
-  UploadCloud
+  UploadCloud,
+  Search,
+  Filter
 } from 'lucide-react';
 import type { Group, Subject, TeacherAssignment, User, Student, EvaluationConfig, UserRole, InstitutionType } from '../types';
 import { db } from '../db';
@@ -67,6 +69,94 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   const isSchool = institutionType === 'SCHOOL';
   const unitSingular = isUniversity ? 'Grupo' : 'Sección';
   const unitPlural = isUniversity ? 'Grupos' : 'Secciones';
+
+  // Filtros y Buscadores en Vista Académica
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<number | 'ALL'>('ALL');
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [teacherFilterMode, setTeacherFilterMode] = useState<'ALL' | 'ASSIGNED' | 'UNASSIGNED'>('ALL');
+
+  // Helper para nombres amigables de niveles / grados
+  const getGradeLabel = (grade: number) => {
+    if (isUniversity) {
+      return `${grade}° Semestre / Ciclo`;
+    }
+    if (isSchool) {
+      switch (grade) {
+        case 1: return 'Primeros (1°)';
+        case 2: return 'Segundos (2°)';
+        case 3: return 'Terceros (3°)';
+        case 4: return 'Cuartos (4°)';
+        case 5: return 'Quintos (5°)';
+        case 6: return 'Sextos (6°)';
+        default: return `${grade}° Grado`;
+      }
+    }
+    // Colegio / Secundaria
+    switch (grade) {
+      case 7: return 'Sétimos (7°)';
+      case 8: return 'Octavos (8°)';
+      case 9: return 'Novenos (9°)';
+      case 10: return 'Décimos (10°)';
+      case 11: return 'Undécimos (11°)';
+      case 12: return 'Duodécimos (12°)';
+      default: return `${grade}° Año`;
+    }
+  };
+
+  // Leer automáticamente los grados/niveles de los grupos existentes en la institución
+  const availableGrades = Array.from(new Set(groups.map(g => g.grade))).sort((a, b) => a - b);
+
+  // Filtrado reactivo de Secciones / Grupos
+  const filteredGroups = groups.filter(grp => {
+    if (selectedGradeFilter !== 'ALL' && grp.grade !== selectedGradeFilter) {
+      return false;
+    }
+    if (sectionSearchQuery.trim()) {
+      const q = sectionSearchQuery.toLowerCase().trim();
+      const codeMatch = grp.sectionCode.toLowerCase().includes(q);
+      const nameMatch = grp.groupName ? grp.groupName.toLowerCase().includes(q) : false;
+      const specMatch = grp.specialty ? grp.specialty.toLowerCase().includes(q) : false;
+      const guideTeacher = teachers.find(t => t.id === grp.guideTeacherId);
+      const guideMatch = guideTeacher ? guideTeacher.name.toLowerCase().includes(q) : false;
+
+      const secAsgs = assignments.filter(a => a.groupId === grp.id);
+      const subjectMatch = secAsgs.some(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        const tch = teachers.find(t => t.id === a.teacherId);
+        return (sub && (sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q))) ||
+               (tch && tch.name.toLowerCase().includes(q));
+      });
+
+      return codeMatch || nameMatch || specMatch || guideMatch || subjectMatch;
+    }
+    return true;
+  });
+
+  // Filtrado reactivo de Docentes
+  const filteredTeachers = teachers.filter(tch => {
+    const teacherAssignments = assignments.filter(a => a.teacherId === tch.id);
+
+    if (teacherFilterMode === 'ASSIGNED' && teacherAssignments.length === 0) return false;
+    if (teacherFilterMode === 'UNASSIGNED' && teacherAssignments.length > 0) return false;
+
+    if (teacherSearchQuery.trim()) {
+      const q = teacherSearchQuery.toLowerCase().trim();
+      const nameMatch = tch.name.toLowerCase().includes(q);
+      const emailMatch = tch.email.toLowerCase().includes(q);
+      const titleMatch = tch.title ? tch.title.toLowerCase().includes(q) : false;
+      const subjectMatch = teacherAssignments.some(asg => {
+        const sub = subjects.find(s => s.id === asg.subjectId);
+        const grp = groups.find(g => g.id === asg.groupId);
+        return (sub && (sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q))) ||
+               (grp && (grp.sectionCode.toLowerCase().includes(q) || (grp.groupName && grp.groupName.toLowerCase().includes(q))));
+      });
+
+      return nameMatch || emailMatch || titleMatch || subjectMatch;
+    }
+
+    return true;
+  });
 
   // Modal Crear Sección / Grupo
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
@@ -495,317 +585,564 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
 
           {/* VISTA SUB-1: POR SECCIONES (GRUPOS COMPLETOS) */}
           {academicViewMode === 'BY_SECTION' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
-              {groups.map(grp => {
-                const sectionStudents = students.filter(s => s.groupId === grp.id);
-                const sectionAssignments = assignments.filter(a => a.groupId === grp.id);
-                const guideTeacher = teachers.find(t => t.id === grp.guideTeacherId);
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Barra de Búsqueda y Filtros por Grado/Nivel */}
+              <div className="glass-panel" style={{
+                padding: '14px 18px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+                  {/* Buscador de secciones */}
+                  <div style={{ position: 'relative', flex: '1', minWidth: '260px' }}>
+                    <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={sectionSearchQuery}
+                      onChange={e => setSectionSearchQuery(e.target.value)}
+                      placeholder={`Buscar por número de ${unitSingular.toLowerCase()} (ej. 7-1, 10-2), nombre, carrera, profesor guía o materia...`}
+                      className="input-field"
+                      style={{
+                        width: '100%',
+                        paddingLeft: '36px',
+                        paddingRight: sectionSearchQuery ? '36px' : '14px',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                    {sectionSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSectionSearchQuery('')}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          padding: '4px'
+                        }}
+                        title="Borrar búsqueda"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
 
-                return (
-                  <div
-                    key={grp.id}
-                    className="glass-panel"
+                  {/* Contador y Limpiar Filtros */}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Filter size={14} color="#4f46e5" />
+                    <span>
+                      Mostrando <strong>{filteredGroups.length}</strong> de <strong>{groups.length}</strong> {unitPlural.toLowerCase()}
+                    </span>
+                    {(selectedGradeFilter !== 'ALL' || sectionSearchQuery) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGradeFilter('ALL');
+                          setSectionSearchQuery('');
+                        }}
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '2px 8px', color: '#ef4444' }}
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filtros de Grado / Nivel automáticos */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '4px' }}>
+                    Filtrar por nivel:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGradeFilter('ALL')}
+                    className={`btn btn-sm ${selectedGradeFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
                     style={{
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '14px',
-                      border: '1px solid var(--border-subtle)',
-                      position: 'relative'
+                      fontSize: '0.78rem',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontWeight: selectedGradeFilter === 'ALL' ? 700 : 500
                     }}
                   >
-                    {/* Header de la Sección / Grupo */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ background: isUniversity ? '#a855f7' : '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.85rem' }}>
-                            {grp.groupName ? grp.groupName : `${unitSingular} ${grp.sectionCode}`}
-                          </span>
-                          <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                            {isUniversity ? `Ciclo ${grp.grade}` : `Año ${grp.year}`}
-                          </span>
-                        </div>
-                        {grp.specialty && (
-                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '6px' }}>
-                            {isUniversity ? `Carrera: ${grp.specialty}` : grp.specialty}
-                          </div>
-                        )}
-                        {guideTeacher && (
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            {isUniversity ? 'Prof. Coordinador:' : 'Docente Guía:'} <strong style={{ color: 'var(--text-main)' }}>{guideTeacher.name}</strong>
-                          </div>
-                        )}
-                      </div>
+                    Todos ({groups.length})
+                  </button>
 
-                      {/* Botones de acción rápida sobre la sección */}
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <button
-                          onClick={() => setViewingGroup(grp)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '6px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          title="Gestionar nómina de estudiantes (Ver, Importar, Agregar, Editar)"
-                        >
-                          <Users size={14} color="#4f46e5" />
-                          <span>{sectionStudents.length} Alumnos</span>
-                        </button>
-                        <button
-                          onClick={() => setImportingGroupId(grp.id)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '6px', color: '#10b981' }}
-                          title="Importar lista de estudiantes desde Excel a este grupo"
-                        >
-                          <UploadCloud size={15} />
-                        </button>
-                        <button
-                          onClick={() => setAddingStudentGroupId(grp.id)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '6px', color: '#4f46e5' }}
-                          title="Agregar estudiante a este grupo"
-                        >
-                          <UserPlus size={15} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGroup(grp.id)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '6px', color: '#ef4444' }}
-                          title={`Eliminar ${unitSingular}`}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </div>
+                  {availableGrades.map(grade => {
+                    const count = groups.filter(g => g.grade === grade).length;
+                    const isSelected = selectedGradeFilter === grade;
 
-                    {/* Materias y Profesores Asignados a este Grupo */}
-                    <div style={{
-                      background: 'var(--bg-main)',
-                      padding: '12px',
-                      borderRadius: '12px',
-                      border: '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        Materias y Docentes Asignados ({sectionAssignments.length})
-                      </div>
+                    return (
+                      <button
+                        type="button"
+                        key={grade}
+                        onClick={() => setSelectedGradeFilter(isSelected ? 'ALL' : grade)}
+                        className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{
+                          fontSize: '0.78rem',
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          fontWeight: isSelected ? 700 : 500,
+                          background: isSelected ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined
+                        }}
+                      >
+                        {getGradeLabel(grade)} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                      {sectionAssignments.map(asg => {
-                        const sub = subjects.find(s => s.id === asg.subjectId);
-                        const tch = teachers.find(t => t.id === asg.teacherId);
+              {/* Grid de Secciones */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+                {filteredGroups.map(grp => {
+                  const sectionStudents = students.filter(s => s.groupId === grp.id);
+                  const sectionAssignments = assignments.filter(a => a.groupId === grp.id);
+                  const guideTeacher = teachers.find(t => t.id === grp.guideTeacherId);
 
-                        return (
-                          <div
-                            key={asg.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              background: 'var(--bg-card)',
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-subtle)',
-                              gap: '8px'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                              <span style={{
-                                width: '8px',
-                                height: '8px',
-                                borderRadius: '50%',
-                                background: sub?.color || '#4f46e5',
-                                flexShrink: 0
-                              }} />
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {sub?.name || 'Materia'}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {tch?.name || 'Sin profesor asignado'} {asg.isGuia ? '• (Guía)' : ''}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                              <button
-                                onClick={() => onOpenGroupGradebook(asg)}
-                                className="btn btn-ghost btn-sm"
-                                style={{ padding: '4px 6px', fontSize: '0.75rem', color: '#4f46e5' }}
-                                title="Inspeccionar notas"
-                              >
-                                <FileSpreadsheet size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAssignment(asg.id)}
-                                className="btn btn-ghost btn-sm"
-                                style={{ padding: '4px 6px', color: '#ef4444' }}
-                                title="Desasignar materia de este grupo"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {sectionAssignments.length === 0 && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0' }}>
-                          Sin materias asignadas aún a esta sección.
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Botón inferior: Asignar materia directamente a este grupo */}
-                    <button
-                      onClick={() => {
-                        setSelectedGroupId(grp.id);
-                        setSelectedSubjectId(subjects[0]?.id || '');
-                        setSelectedTeacherId(teachers[0]?.id || '');
-                        setIsAssignTeacherOpen(true);
-                      }}
-                      className="btn btn-secondary btn-sm"
+                  return (
+                    <div
+                      key={grp.id}
+                      className="glass-panel"
                       style={{
-                        marginTop: 'auto',
+                        padding: '20px',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        borderStyle: 'dashed'
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: '1px solid var(--border-subtle)',
+                        position: 'relative'
                       }}
                     >
-                      <Plus size={14} color="#4f46e5" />
-                      <span>+ Asignar Materia a {grp.groupName || `${unitSingular} ${grp.sectionCode}`}</span>
-                    </button>
-                  </div>
-                );
-              })}
+                      {/* Header de la Sección / Grupo */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="badge" style={{ background: isUniversity ? '#a855f7' : '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.85rem' }}>
+                              {grp.groupName ? grp.groupName : `${unitSingular} ${grp.sectionCode}`}
+                            </span>
+                            <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                              {isUniversity ? `Ciclo ${grp.grade}` : `Año ${grp.year}`}
+                            </span>
+                          </div>
+                          {grp.specialty && (
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '6px' }}>
+                              {isUniversity ? `Carrera: ${grp.specialty}` : grp.specialty}
+                            </div>
+                          )}
+                          {guideTeacher && (
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              {isUniversity ? 'Prof. Coordinador:' : 'Docente Guía:'} <strong style={{ color: 'var(--text-main)' }}>{guideTeacher.name}</strong>
+                            </div>
+                          )}
+                        </div>
 
-              {groups.length === 0 && (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  No se han registrado {unitPlural.toLowerCase()} en esta institución. Haz clic en <strong>"+ Crear {unitSingular}"</strong> para comenzar.
-                </div>
-              )}
+                        {/* Botones de acción rápida sobre la sección */}
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewingGroup(grp)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '6px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            title="Gestionar nómina de estudiantes (Ver, Importar, Agregar, Editar)"
+                          >
+                            <Users size={14} color="#4f46e5" />
+                            <span>{sectionStudents.length} Alumnos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImportingGroupId(grp.id)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '6px', color: '#10b981' }}
+                            title="Importar lista de estudiantes desde Excel a este grupo"
+                          >
+                            <UploadCloud size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddingStudentGroupId(grp.id)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '6px', color: '#4f46e5' }}
+                            title="Agregar estudiante a este grupo"
+                          >
+                            <UserPlus size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGroup(grp.id)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '6px', color: '#ef4444' }}
+                            title={`Eliminar ${unitSingular}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Materias y Profesores Asignados a este Grupo */}
+                      <div style={{
+                        background: 'var(--bg-main)',
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Materias y Docentes Asignados ({sectionAssignments.length})
+                        </div>
+
+                        {sectionAssignments.map(asg => {
+                          const sub = subjects.find(s => s.id === asg.subjectId);
+                          const tch = teachers.find(t => t.id === asg.teacherId);
+
+                          return (
+                            <div
+                              key={asg.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-card)',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-subtle)',
+                                gap: '8px'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                <span style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  borderRadius: '50%',
+                                  background: sub?.color || '#4f46e5',
+                                  flexShrink: 0
+                                }} />
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {sub?.name || 'Materia'}
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {tch?.name || 'Sin profesor asignado'} {asg.isGuia ? '• (Guía)' : ''}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenGroupGradebook(asg)}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem', color: '#4f46e5' }}
+                                  title="Inspeccionar notas"
+                                >
+                                  <FileSpreadsheet size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAssignment(asg.id)}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ padding: '4px 6px', color: '#ef4444' }}
+                                  title="Desasignar materia de este grupo"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {sectionAssignments.length === 0 && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0' }}>
+                            Sin materias asignadas aún a esta sección.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Botón inferior: Asignar materia directamente a este grupo */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGroupId(grp.id);
+                          setSelectedSubjectId(subjects[0]?.id || '');
+                          setSelectedTeacherId(teachers[0]?.id || '');
+                          setIsAssignTeacherOpen(true);
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          marginTop: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          borderStyle: 'dashed'
+                        }}
+                      >
+                        <Plus size={14} color="#4f46e5" />
+                        <span>+ Asignar Materia a {grp.groupName || `${unitSingular} ${grp.sectionCode}`}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {filteredGroups.length === 0 && (
+                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: 0, fontSize: '0.95rem' }}>
+                      {groups.length === 0
+                        ? `No se han registrado ${unitPlural.toLowerCase()} en esta institución. Haz clic en "+ Crear ${unitSingular}" para comenzar.`
+                        : `No se encontraron ${unitPlural.toLowerCase()} que coincidan con la búsqueda o filtro seleccionado.`}
+                    </p>
+                    {groups.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGradeFilter('ALL');
+                          setSectionSearchQuery('');
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '12px' }}
+                      >
+                        Mostrar todas las {unitPlural.toLowerCase()}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* VISTA SUB-2: POR DOCENTES */}
           {academicViewMode === 'BY_TEACHER' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
-              {teachers.map(tch => {
-                const teacherAssignments = assignments.filter(a => a.teacherId === tch.id);
-
-                return (
-                  <div
-                    key={tch.id}
-                    className="glass-panel"
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Barra de Filtros y Buscador para Docentes */}
+              <div className="glass-panel" style={{
+                padding: '14px 18px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '14px',
+                flexWrap: 'wrap'
+              }}>
+                {/* Buscador de docentes */}
+                <div style={{ position: 'relative', flex: '1', minWidth: '260px' }}>
+                  <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={teacherSearchQuery}
+                    onChange={e => setTeacherSearchQuery(e.target.value)}
+                    placeholder="Buscar docente por nombre, correo, título o materia/sección que imparte..."
+                    className="input-field"
                     style={{
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '14px',
-                      border: '1px solid var(--border-subtle)'
+                      width: '100%',
+                      paddingLeft: '36px',
+                      paddingRight: teacherSearchQuery ? '36px' : '14px',
+                      fontSize: '0.85rem'
                     }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                        color: 'white',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: '1rem'
-                      }}>
-                        {tch.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>{tch.name}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tch.title || 'Docente'}</div>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      background: 'var(--bg-main)',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px'
-                    }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        Secciones y Materias Impartidas ({teacherAssignments.length})
-                      </div>
-
-                      {teacherAssignments.map(asg => {
-                        const grp = groups.find(g => g.id === asg.groupId);
-                        const sub = subjects.find(s => s.id === asg.subjectId);
-
-                        return (
-                          <div
-                            key={asg.id}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              background: 'var(--bg-card)',
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-subtle)',
-                              fontSize: '0.82rem'
-                            }}
-                          >
-                            <div>
-                              <strong style={{ color: '#4f46e5' }}>Sección {grp?.sectionCode}</strong> • {sub?.name}
-                            </div>
-                            <button
-                              onClick={() => handleDeleteAssignment(asg.id)}
-                              className="btn btn-ghost btn-sm"
-                              style={{ padding: '3px', color: '#ef4444' }}
-                              title="Desasignar"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        );
-                      })}
-
-                      {teacherAssignments.length === 0 && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '8px 0' }}>
-                          Este docente aún no tiene secciones asignadas.
-                        </div>
-                      )}
-                    </div>
-
+                  />
+                  {teacherSearchQuery && (
                     <button
-                      onClick={() => {
-                        setSelectedTeacherId(tch.id);
-                        setSelectedGroupId(groups[0]?.id || '');
-                        setSelectedSubjectId(subjects[0]?.id || '');
-                        setIsAssignTeacherOpen(true);
-                      }}
-                      className="btn btn-secondary btn-sm"
+                      type="button"
+                      onClick={() => setTeacherSearchQuery('')}
                       style={{
-                        marginTop: 'auto',
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '4px'
+                      }}
+                      title="Borrar búsqueda"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtros de Asignación de Docente */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherFilterMode('ALL')}
+                    className={`btn btn-sm ${teacherFilterMode === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.78rem', padding: '4px 12px', borderRadius: '20px' }}
+                  >
+                    Todos ({teachers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherFilterMode('ASSIGNED')}
+                    className={`btn btn-sm ${teacherFilterMode === 'ASSIGNED' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.78rem', padding: '4px 12px', borderRadius: '20px' }}
+                  >
+                    Con Asignaciones ({teachers.filter(t => assignments.some(a => a.teacherId === t.id)).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherFilterMode('UNASSIGNED')}
+                    className={`btn btn-sm ${teacherFilterMode === 'UNASSIGNED' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.78rem', padding: '4px 12px', borderRadius: '20px' }}
+                  >
+                    Sin Asignar ({teachers.filter(t => !assignments.some(a => a.teacherId === t.id)).length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid de Docentes */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+                {filteredTeachers.map(tch => {
+                  const teacherAssignments = assignments.filter(a => a.teacherId === tch.id);
+
+                  return (
+                    <div
+                      key={tch.id}
+                      className="glass-panel"
+                      style={{
+                        padding: '20px',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        borderStyle: 'dashed'
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: '1px solid var(--border-subtle)'
                       }}
                     >
-                      <Plus size={14} color="#4f46e5" />
-                      <span>+ Asignar Sección a {tch.name.split(' ')[0]}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '1rem'
+                        }}>
+                          {tch.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>{tch.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tch.title || 'Docente'}</div>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--bg-main)',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Secciones y Materias Impartidas ({teacherAssignments.length})
+                        </div>
+
+                        {teacherAssignments.map(asg => {
+                          const grp = groups.find(g => g.id === asg.groupId);
+                          const sub = subjects.find(s => s.id === asg.subjectId);
+
+                          return (
+                            <div
+                              key={asg.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'var(--bg-card)',
+                                padding: '6px 10px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-subtle)',
+                                fontSize: '0.82rem'
+                              }}
+                            >
+                              <div>
+                                <strong style={{ color: '#4f46e5' }}>
+                                  {grp?.groupName ? grp.groupName : `${unitSingular} ${grp?.sectionCode}`}
+                                </strong> • {sub?.name}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAssignment(asg.id)}
+                                className="btn btn-ghost btn-sm"
+                                style={{ padding: '3px', color: '#ef4444' }}
+                                title="Desasignar"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {teacherAssignments.length === 0 && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '8px 0' }}>
+                            Este docente aún no tiene secciones asignadas.
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTeacherId(tch.id);
+                          setSelectedGroupId(groups[0]?.id || '');
+                          setSelectedSubjectId(subjects[0]?.id || '');
+                          setIsAssignTeacherOpen(true);
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          marginTop: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          borderStyle: 'dashed'
+                        }}
+                      >
+                        <Plus size={14} color="#4f46e5" />
+                        <span>+ Asignar Sección a {tch.name.split(' ')[0]}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {filteredTeachers.length === 0 && (
+                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: 0, fontSize: '0.95rem' }}>
+                      No se encontraron docentes que coincidan con la búsqueda o filtro.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTeacherFilterMode('ALL');
+                        setTeacherSearchQuery('');
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginTop: '12px' }}
+                    >
+                      Mostrar todos los docentes
                     </button>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           )}
         </div>
