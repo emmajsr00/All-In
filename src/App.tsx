@@ -293,6 +293,7 @@ export const App: React.FC = () => {
           <DirectorView
             institutionId={currentInstitution.id}
             institutionName={currentInstitution.name}
+            institutionType={currentInstitution.type}
             groups={institutionGroups}
             subjects={institutionSubjects}
             assignments={institutionAssignments}

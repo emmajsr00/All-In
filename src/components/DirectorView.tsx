@@ -23,12 +23,13 @@ import {
   Check,
   Eye
 } from 'lucide-react';
-import type { Group, Subject, TeacherAssignment, User, Student, EvaluationConfig, UserRole } from '../types';
+import type { Group, Subject, TeacherAssignment, User, Student, EvaluationConfig, UserRole, InstitutionType } from '../types';
 import { db } from '../db';
 
 interface DirectorViewProps {
   institutionId: string;
   institutionName: string;
+  institutionType?: InstitutionType;
   groups: Group[];
   subjects: Subject[];
   assignments: TeacherAssignment[];
@@ -43,6 +44,7 @@ interface DirectorViewProps {
 export const DirectorView: React.FC<DirectorViewProps> = ({
   institutionId,
   institutionName,
+  institutionType = 'COLLEGE',
   groups,
   subjects,
   assignments,
@@ -56,10 +58,16 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   const [activeTab, setActiveTab] = useState<'ACADEMIC' | 'SUPERVISION' | 'STAFF'>('ACADEMIC');
   const [academicViewMode, setAcademicViewMode] = useState<'BY_SECTION' | 'BY_TEACHER'>('BY_SECTION');
 
-  // Modal Crear Sección
+  const isUniversity = institutionType === 'UNIVERSITY';
+  const isSchool = institutionType === 'SCHOOL';
+  const unitSingular = isUniversity ? 'Grupo' : 'Sección';
+  const unitPlural = isUniversity ? 'Grupos' : 'Secciones';
+
+  // Modal Crear Sección / Grupo
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
-  const [groupGrade, setGroupGrade] = useState<number>(10);
+  const [groupGrade, setGroupGrade] = useState<number>(isUniversity ? 1 : isSchool ? 1 : 10);
   const [groupSectionCode, setGroupSectionCode] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [groupSpecialty, setGroupSpecialty] = useState('');
   const [groupYear, setGroupYear] = useState<number>(2026);
   const [groupGuideTeacherId, setGroupGuideTeacherId] = useState<string>('');
@@ -94,19 +102,23 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
 
   // ==================== HANDLERS ====================
 
-  // Crear Sección (Grupo Completo)
+  // Crear Sección / Grupo Completo
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     setGroupError(null);
 
-    const code = groupSectionCode.trim().toUpperCase();
+    const isUniv = institutionType === 'UNIVERSITY';
+    const code = isUniv
+      ? (groupName.trim() || groupSectionCode.trim()).toUpperCase()
+      : groupSectionCode.trim().toUpperCase();
+
     if (!code) {
-      setGroupError('Ingresa el código de la sección (ej. 10-1).');
+      setGroupError(isUniv ? 'Ingresa el nombre o identificador del grupo.' : 'Ingresa el código de la sección (ej. 10-1).');
       return;
     }
 
-    if (groups.some(g => g.sectionCode.toUpperCase() === code)) {
-      setGroupError(`Ya existe una sección con el código ${code} en esta institución.`);
+    if (groups.some(g => (g.sectionCode.toUpperCase() === code || (g.groupName && g.groupName.toUpperCase() === groupName.trim().toUpperCase())))) {
+      setGroupError(`Ya existe un ${unitSingular.toLowerCase()} registrado con este nombre/código en esta institución.`);
       return;
     }
 
@@ -115,6 +127,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
       institutionId,
       grade: Number(groupGrade),
       sectionCode: code,
+      groupName: isUniv ? (groupName.trim() || code) : undefined,
       year: Number(groupYear) || 2026,
       specialty: groupSpecialty.trim() || undefined,
       guideTeacherId: groupGuideTeacherId || undefined
@@ -123,6 +136,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
     await db.groups.add(newGroup);
     setIsAddGroupOpen(false);
     setGroupSectionCode('');
+    setGroupName('');
     setGroupSpecialty('');
     setGroupGuideTeacherId('');
     if (onDataChanged) onDataChanged();
@@ -316,7 +330,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ background: 'var(--bg-card)', padding: '10px 18px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#4f46e5' }}>{groups.length}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Secciones</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{unitPlural}</div>
             </div>
             <div style={{ background: 'var(--bg-card)', padding: '10px 18px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#06b6d4' }}>{teachers.length}</div>
@@ -342,7 +356,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
         >
           <Layers size={16} />
-          <span>Gestión de Secciones y Cargas ({groups.length})</span>
+          <span>Gestión de {unitPlural} y Cargas ({groups.length})</span>
         </button>
 
         <button
@@ -381,10 +395,10 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             <div>
               <h2 style={{ fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <Layers size={20} color="#4f46e5" />
-                Secciones, Materias y Asignación de Docentes
+                {unitPlural}, Materias y Asignación de Docentes
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Una sola nómina de estudiantes en una sección es compartida por todos los docentes asignados a esa sección.
+                Una sola nómina de estudiantes en un {unitSingular.toLowerCase()} es compartida por todos los docentes asignados.
               </p>
             </div>
 
@@ -402,7 +416,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   className={`btn btn-sm ${academicViewMode === 'BY_SECTION' ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ fontSize: '0.78rem', padding: '5px 10px', fontWeight: 700, borderRadius: '8px' }}
                 >
-                  Por Secciones ({groups.length})
+                  Por {unitPlural} ({groups.length})
                 </button>
                 <button
                   onClick={() => setAcademicViewMode('BY_TEACHER')}
@@ -413,7 +427,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 </button>
               </div>
 
-              {/* Botón Crear Sección */}
+              {/* Botón Crear Sección / Grupo */}
               <button
                 onClick={() => setIsAddGroupOpen(true)}
                 className="btn btn-primary btn-sm"
@@ -426,7 +440,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 }}
               >
                 <Plus size={16} />
-                <span>+ Crear Sección</span>
+                <span>+ Crear {unitSingular}</span>
               </button>
 
               {/* Botón Asignar Materia a Docente */}
@@ -477,25 +491,25 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       position: 'relative'
                     }}
                   >
-                    {/* Header de la Sección */}
+                    {/* Header de la Sección / Grupo */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.85rem' }}>
-                            Sección {grp.sectionCode}
+                          <span className="badge" style={{ background: isUniversity ? '#a855f7' : '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.85rem' }}>
+                            {grp.groupName ? grp.groupName : `${unitSingular} ${grp.sectionCode}`}
                           </span>
                           <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                            Año {grp.year}
+                            {isUniversity ? `Ciclo ${grp.grade}` : `Año ${grp.year}`}
                           </span>
                         </div>
                         {grp.specialty && (
                           <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '6px' }}>
-                            {grp.specialty}
+                            {isUniversity ? `Carrera: ${grp.specialty}` : grp.specialty}
                           </div>
                         )}
                         {guideTeacher && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            Docente Guía: <strong style={{ color: 'var(--text-main)' }}>{guideTeacher.name}</strong>
+                            {isUniversity ? 'Prof. Coordinador:' : 'Docente Guía:'} <strong style={{ color: 'var(--text-main)' }}>{guideTeacher.name}</strong>
                           </div>
                         )}
                       </div>
@@ -601,7 +615,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       )}
                     </div>
 
-                    {/* Botón inferior: Asignar materia directamente a esta sección */}
+                    {/* Botón inferior: Asignar materia directamente a este grupo */}
                     <button
                       onClick={() => {
                         setSelectedGroupId(grp.id);
@@ -622,7 +636,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       }}
                     >
                       <Plus size={14} color="#4f46e5" />
-                      <span>+ Asignar Materia a Sección {grp.sectionCode}</span>
+                      <span>+ Asignar Materia a {grp.groupName || `${unitSingular} ${grp.sectionCode}`}</span>
                     </button>
                   </div>
                 );
@@ -630,7 +644,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
 
               {groups.length === 0 && (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  No se han registrado secciones en esta institución. Haz clic en <strong>"+ Crear Sección"</strong> para comenzar.
+                  No se han registrado {unitPlural.toLowerCase()} en esta institución. Haz clic en <strong>"+ Crear {unitSingular}"</strong> para comenzar.
                 </div>
               )}
             </div>
@@ -973,7 +987,9 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Layers size={20} color="#4f46e5" />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Crear Nueva Sección</h3>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
+                  Crear Nuevo {unitSingular} {isUniversity ? 'Universitario' : isSchool ? 'de Primaria' : 'de Secundaria'}
+                </h3>
               </div>
               <button onClick={() => setIsAddGroupOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
                 <X size={18} />
@@ -981,7 +997,9 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             </div>
 
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Crea una sección de grupo completo. Luego podrás registrar o importar los estudiantes para este grupo y asignarle materias a los docentes.
+              {isUniversity
+                ? 'Crea un grupo universitario asignando su nombre distintivo, cuatrimestre y carrera. Luego podrás matricular estudiantes y asignar docentes.'
+                : `Crea un ${unitSingular.toLowerCase()} de grupo completo. Luego podrás registrar o importar los estudiantes para este grupo y asignarle materias a los docentes.`}
             </p>
 
             {groupError && (
@@ -999,94 +1017,199 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             )}
 
             <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                    Nivel / Grado *
-                  </label>
-                  <select
-                    value={groupGrade}
-                    onChange={e => setGroupGrade(Number(e.target.value))}
-                    className="input-field"
-                    style={{ width: '100%', padding: '10px 14px' }}
-                  >
-                    <option value={7}>7° Séptimo</option>
-                    <option value={8}>8° Octavo</option>
-                    <option value={9}>9° Noveno</option>
-                    <option value={10}>10° Décimo</option>
-                    <option value={11}>11° Undécimo</option>
-                    <option value={12}>12° Duodécimo</option>
-                  </select>
-                </div>
+              {isUniversity ? (
+                /* FORMULARIO UNIVERSIDAD */
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                      Nombre del Grupo Universitario *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. Grupo 01 - Matutino, NRC 4512, Grupo A"
+                      value={groupName}
+                      onChange={e => setGroupName(e.target.value)}
+                      className="input-field"
+                      style={{ width: '100%', padding: '10px 14px' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                    Código de Sección *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. 10-1, 11-2, 12-1"
-                    value={groupSectionCode}
-                    onChange={e => setGroupSectionCode(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', padding: '10px 14px' }}
-                  />
-                </div>
-              </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Ciclo / Semestre / Cuatri *
+                      </label>
+                      <select
+                        value={groupGrade}
+                        onChange={e => setGroupGrade(Number(e.target.value))}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      >
+                        <option value={1}>I Cuatrimestre / Semestre</option>
+                        <option value={2}>II Cuatrimestre / Semestre</option>
+                        <option value={3}>III Cuatrimestre / Semestre</option>
+                        <option value={4}>IV Cuatrimestre / Semestre</option>
+                        <option value={5}>V Cuatrimestre / Semestre</option>
+                        <option value={6}>VI Cuatrimestre / Semestre</option>
+                        <option value={7}>VII Cuatrimestre / Semestre</option>
+                        <option value={8}>VIII Cuatrimestre / Semestre</option>
+                        <option value={9}>IX Cuatrimestre / Semestre</option>
+                        <option value={10}>X Cuatrimestre / Semestre</option>
+                      </select>
+                    </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                  Especialidad Técnica o Modalidad
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Informática en Desarrollo de Software, Contabilidad..."
-                  value={groupSpecialty}
-                  onChange={e => setGroupSpecialty(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', padding: '10px 14px' }}
-                />
-              </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Año / Periodo Lectivo
+                      </label>
+                      <input
+                        type="number"
+                        value={groupYear}
+                        onChange={e => setGroupYear(Number(e.target.value))}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      />
+                    </div>
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                    Año Lectivo
-                  </label>
-                  <input
-                    type="number"
-                    value={groupYear}
-                    onChange={e => setGroupYear(Number(e.target.value))}
-                    className="input-field"
-                    style={{ width: '100%', padding: '10px 14px' }}
-                  />
-                </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                      Carrera / Facultad / Programa
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Ingeniería en Sistemas, Administración de Empresas..."
+                      value={groupSpecialty}
+                      onChange={e => setGroupSpecialty(e.target.value)}
+                      className="input-field"
+                      style={{ width: '100%', padding: '10px 14px' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                    Docente Guía (Opcional)
-                  </label>
-                  <select
-                    value={groupGuideTeacherId}
-                    onChange={e => setGroupGuideTeacherId(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', padding: '10px 14px' }}
-                  >
-                    <option value="">Sin asignar</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                      Profesor Coordinador / Titular (Opcional)
+                    </label>
+                    <select
+                      value={groupGuideTeacherId}
+                      onChange={e => setGroupGuideTeacherId(e.target.value)}
+                      className="input-field"
+                      style={{ width: '100%', padding: '10px 14px' }}
+                    >
+                      <option value="">Sin asignar</option>
+                      {teachers.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                /* FORMULARIO ESCUELA O COLEGIO */
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Nivel / Grado *
+                      </label>
+                      <select
+                        value={groupGrade}
+                        onChange={e => setGroupGrade(Number(e.target.value))}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      >
+                        {isSchool ? (
+                          <>
+                            <option value={1}>1° Primero</option>
+                            <option value={2}>2° Segundo</option>
+                            <option value={3}>3° Tercero</option>
+                            <option value={4}>4° Cuarto</option>
+                            <option value={5}>5° Quinto</option>
+                            <option value={6}>6° Sexto</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value={7}>7° Séptimo</option>
+                            <option value={8}>8° Octavo</option>
+                            <option value={9}>9° Noveno</option>
+                            <option value={10}>10° Décimo</option>
+                            <option value={11}>11° Undécimo</option>
+                            <option value={12}>12° Duodécimo</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Código de Sección *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={isSchool ? "Ej. 1-1, 2-2, 6-1" : "Ej. 10-1, 11-2, 12-1"}
+                        value={groupSectionCode}
+                        onChange={e => setGroupSectionCode(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                      {isSchool ? 'Modalidad / Énfasis' : 'Especialidad Técnica o Modalidad'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={isSchool ? "Ej. General, Bilingüe..." : "Ej. Informática en Desarrollo de Software, Contabilidad..."}
+                      value={groupSpecialty}
+                      onChange={e => setGroupSpecialty(e.target.value)}
+                      className="input-field"
+                      style={{ width: '100%', padding: '10px 14px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Año Lectivo
+                      </label>
+                      <input
+                        type="number"
+                        value={groupYear}
+                        onChange={e => setGroupYear(Number(e.target.value))}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                        Docente Guía (Opcional)
+                      </label>
+                      <select
+                        value={groupGuideTeacherId}
+                        onChange={e => setGroupGuideTeacherId(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', padding: '10px 14px' }}
+                      >
+                        <option value="">Sin asignar</option>
+                        {teachers.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setIsAddGroupOpen(false)} className="btn btn-secondary btn-sm">
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm">
-                  Crear Sección
+                  Crear {unitSingular}
                 </button>
               </div>
             </form>
@@ -1150,7 +1273,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
             <form onSubmit={handleCreateAssignment} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
-                  1. Seleccionar Sección (Grupo Completo) *
+                  1. Seleccionar {unitSingular} (Grupo Completo) *
                 </label>
                 <select
                   required
@@ -1159,10 +1282,10 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   className="input-field"
                   style={{ width: '100%', padding: '10px 14px' }}
                 >
-                  <option value="">-- Elige la Sección --</option>
+                  <option value="">-- Elige el {unitSingular} --</option>
                   {groups.map(g => (
                     <option key={g.id} value={g.id}>
-                      Sección {g.sectionCode} {g.specialty ? `(${g.specialty})` : ''}
+                      {g.groupName ? `${g.groupName} (${g.specialty || 'General'})` : `${unitSingular} ${g.sectionCode} ${g.specialty ? `(${g.specialty})` : ''}`}
                     </option>
                   ))}
                 </select>
@@ -1372,14 +1495,14 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span className="badge" style={{ background: '#4f46e5', color: 'white' }}>
-                    Sección {viewingGroup.sectionCode}
+                    {viewingGroup.groupName || `${unitSingular} ${viewingGroup.sectionCode}`}
                   </span>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
                     Nómina Oficial de Estudiantes
                   </h3>
                 </div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Esta lista completa de estudiantes es compartida por todos los docentes que imparten materias en esta sección.
+                  Esta lista completa de estudiantes es compartida por todos los docentes que imparten materias en este {unitSingular.toLowerCase()}.
                 </p>
               </div>
               <button onClick={() => setViewingGroup(null)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>

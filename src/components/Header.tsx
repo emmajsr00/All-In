@@ -69,6 +69,22 @@ export const Header: React.FC<HeaderProps> = ({
 
   const roleTheme = getRoleColor(currentUser.role);
 
+  const getInstitutionBadge = (type?: string) => {
+    switch (type) {
+      case 'UNIVERSITY':
+        return { label: 'Universidad', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.25)' };
+      case 'SCHOOL':
+        return { label: 'Escuela', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.25)' };
+      case 'INDEPENDENT':
+        return { label: 'Docente Independiente', color: '#059669', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)' };
+      case 'COLLEGE':
+      default:
+        return { label: 'Colegio', color: '#4f46e5', bg: 'rgba(79, 70, 229, 0.12)', border: 'rgba(79, 70, 229, 0.25)' };
+    }
+  };
+
+  const instBadge = getInstitutionBadge(currentInstitution?.type);
+
   return (
     <header style={{
       position: 'sticky',
@@ -109,12 +125,13 @@ export const Header: React.FC<HeaderProps> = ({
                 ALL<span style={{ color: '#4f46e5' }}>-IN</span>
               </span>
               <span className="badge" style={{
-                background: currentInstitution?.type === 'COLLEGE' ? 'rgba(79, 70, 229, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                color: currentInstitution?.type === 'COLLEGE' ? '#4f46e5' : '#059669',
-                border: `1px solid ${currentInstitution?.type === 'COLLEGE' ? 'rgba(79, 70, 229, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`
+                background: instBadge.bg,
+                color: instBadge.color,
+                border: `1px solid ${instBadge.border}`,
+                fontWeight: 700
               }}>
                 <Building2 size={12} />
-                {currentInstitution?.type === 'COLLEGE' ? 'Institucional' : 'Docente Independiente'}
+                {instBadge.label}
               </span>
             </div>
             <div style={{ fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>

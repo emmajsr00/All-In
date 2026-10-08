@@ -16,7 +16,7 @@ import {
   Lock,
   Briefcase
 } from 'lucide-react';
-import type { Institution, User, Group, Student, UserRole } from '../types';
+import type { Institution, User, Group, Student, UserRole, InstitutionType } from '../types';
 import { db } from '../db';
 
 interface DeveloperViewProps {
@@ -45,7 +45,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
   // Formulario Nueva Institución
   const [instName, setInstName] = useState('');
   const [instCode, setInstCode] = useState('');
-  const [instType, setInstType] = useState<'COLLEGE' | 'INDEPENDENT'>('COLLEGE');
+  const [instType, setInstType] = useState<InstitutionType>('COLLEGE');
   const [instCircuit, setInstCircuit] = useState('');
   const [instRegional, setInstRegional] = useState('');
 
@@ -263,25 +263,46 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '12px',
-                      background: inst.type === 'COLLEGE' ? 'rgba(79, 70, 229, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                      color: inst.type === 'COLLEGE' ? '#4f46e5' : '#059669',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Building2 size={22} />
-                    </div>
-                    <span className="badge" style={{
-                      background: inst.type === 'COLLEGE' ? 'rgba(79, 70, 229, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                      color: inst.type === 'COLLEGE' ? '#4f46e5' : '#059669',
-                      fontSize: '0.72rem'
-                    }}>
-                      {inst.type === 'COLLEGE' ? 'Colegio / Institución' : 'Independiente'}
-                    </span>
+                    {(() => {
+                      const getInstBadgeInfo = (type: InstitutionType) => {
+                        switch (type) {
+                          case 'UNIVERSITY':
+                            return { label: 'Universidad', bg: 'rgba(168, 85, 247, 0.15)', text: '#a855f7' };
+                          case 'SCHOOL':
+                            return { label: 'Escuela', bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' };
+                          case 'INDEPENDENT':
+                            return { label: 'Docente Independiente', bg: 'rgba(16, 185, 129, 0.15)', text: '#059669' };
+                          case 'COLLEGE':
+                          default:
+                            return { label: 'Colegio', bg: 'rgba(79, 70, 229, 0.15)', text: '#4f46e5' };
+                        }
+                      };
+                      const bInfo = getInstBadgeInfo(inst.type);
+                      return (
+                        <>
+                          <div style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '12px',
+                            background: bInfo.bg,
+                            color: bInfo.text,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            {inst.type === 'UNIVERSITY' ? <GraduationCap size={22} /> : <Building2 size={22} />}
+                          </div>
+                          <span className="badge" style={{
+                            background: bInfo.bg,
+                            color: bInfo.text,
+                            fontSize: '0.72rem',
+                            fontWeight: 700
+                          }}>
+                            {bInfo.label}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>
@@ -448,14 +469,16 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Tipo de Espacio</label>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Tipo de Institución *</label>
                   <select
                     value={instType}
-                    onChange={(e) => setInstType(e.target.value as any)}
+                    onChange={(e) => setInstType(e.target.value as InstitutionType)}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
                   >
-                    <option value="COLLEGE">Colegio / Institucional</option>
-                    <option value="INDEPENDENT">Docente Independiente</option>
+                    <option value="COLLEGE">🏫 Colegio (Secundaria / Técnico / Académico)</option>
+                    <option value="SCHOOL">🎒 Escuela (Primaria)</option>
+                    <option value="UNIVERSITY">🎓 Universidad (Educación Superior)</option>
+                    <option value="INDEPENDENT">👤 Docente Independiente</option>
                   </select>
                 </div>
               </div>

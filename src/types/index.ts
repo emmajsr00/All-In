@@ -1,4 +1,4 @@
-export type InstitutionType = 'COLLEGE' | 'INDEPENDENT';
+export type InstitutionType = 'COLLEGE' | 'SCHOOL' | 'UNIVERSITY' | 'INDEPENDENT';
 
 export interface Institution {
   id: string;
@@ -28,9 +28,10 @@ export interface Group {
   id: string;
   institutionId: string;
   grade: number;
-  sectionCode: string; // e.g. "12-1"
+  sectionCode: string; // e.g. "12-1" o "01"
+  groupName?: string; // e.g. "Grupo 01 - Matutino", "NRC 4512" (para universidades)
   year: number;
-  specialty?: string; // e.g. "Ejecutivo para Centro de Servicios"
+  specialty?: string; // e.g. "Ejecutivo para Centro de Servicios", "Ingeniería Informática"
   guideTeacherId?: string;
 }
 
