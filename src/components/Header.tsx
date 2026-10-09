@@ -31,7 +31,8 @@ import {
   HeartPulse,
   PhoneCall,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Menu
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { User, Institution } from '../types';
@@ -50,6 +51,8 @@ interface HeaderProps {
   onNavigateHome: () => void;
   isDeveloperPanelActive?: boolean;
   onUserDataChanged?: () => void;
+  onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -63,7 +66,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onNavigateHome,
   isDeveloperPanelActive,
-  onUserDataChanged
+  onUserDataChanged,
+  onToggleSidebar,
+  isSidebarCollapsed
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [profileAvatarUrl, setProfileAvatarUrl] = React.useState(currentUser.avatarUrl || '');
@@ -414,8 +419,29 @@ export const Header: React.FC<HeaderProps> = ({
         flexWrap: 'wrap',
         gap: '12px'
       }}>
-        {/* Brand & Institution Info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }} onClick={onNavigateHome}>
+        {/* Toggle Sidebar Button & Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              className="btn btn-sm btn-secondary"
+              style={{
+                padding: '8px 10px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                borderColor: 'rgba(79, 70, 229, 0.25)'
+              }}
+              title={isSidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
+            >
+              <Menu size={18} color="var(--primary-600)" />
+            </button>
+          )}
+
+          {/* Brand & Institution Info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }} onClick={onNavigateHome}>
           <div style={{
             width: '42px',
             height: '42px',
@@ -450,6 +476,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
         </div>
+      </div>
 
         {/* Right side controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

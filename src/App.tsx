@@ -320,6 +320,8 @@ export const App: React.FC = () => {
           }}
           isDeveloperPanelActive={isDeveloperPanelActive}
           onUserDataChanged={loadAppData}
+          onToggleSidebar={currentUser.role === 'TEACHER' && !selectedAssignment ? () => setIsSidebarCollapsed(prev => !prev) : undefined}
+          isSidebarCollapsed={isSidebarCollapsed}
         />
 
         {/* Main Content Area */}

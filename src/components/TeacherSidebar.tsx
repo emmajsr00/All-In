@@ -100,13 +100,24 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
         {/* Brand Header */}
         <div style={{
           display: 'flex',
+          flexDirection: isCollapsed ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
+          gap: isCollapsed ? '8px' : '10px',
           marginBottom: '20px',
           paddingBottom: '14px',
           borderBottom: '1px solid var(--border-subtle)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            onClick={isCollapsed ? onToggleCollapse : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: isCollapsed ? 'pointer' : 'default'
+            }}
+            title={isCollapsed ? "Clic para expandir menú lateral" : undefined}
+          >
             <div style={{
               width: '36px',
               height: '36px',
@@ -135,16 +146,27 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
             )}
           </div>
 
-          {!isCollapsed && (
-            <button
-              onClick={onToggleCollapse}
-              className="btn btn-sm btn-secondary"
-              style={{ padding: '6px', borderRadius: '8px', border: 'none', background: 'transparent' }}
-              title="Colapsar menú lateral"
-            >
+          <button
+            onClick={onToggleCollapse}
+            className="btn btn-sm btn-secondary"
+            style={{
+              padding: isCollapsed ? '6px 8px' : '6px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: isCollapsed ? 'var(--bg-surface)' : 'transparent',
+              border: isCollapsed ? '1px solid var(--border-subtle)' : 'none',
+              cursor: 'pointer'
+            }}
+            title={isCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
+          >
+            {isCollapsed ? (
+              <ChevronRight size={16} color="var(--primary-600)" />
+            ) : (
               <ChevronLeft size={16} color="var(--text-muted)" />
-            </button>
-          )}
+            )}
+          </button>
         </div>
 
         {/* Tarjeta de la Institución Activa (Workspace Card) */}
