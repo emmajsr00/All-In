@@ -106,6 +106,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isImportStudentsModalOpen, setIsImportStudentsModalOpen] = useState(false);
   const [sectionModalForGrading, setSectionModalForGrading] = useState<Group | null>(null);
 
+  // Filtros de Secciones a Cargo en el Dashboard
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [sectionGradeFilter, setSectionGradeFilter] = useState<'ALL' | string>('ALL');
+  const [sectionRoleFilter, setSectionRoleFilter] = useState<'ALL' | 'GUIA' | 'SUBJECT'>('ALL');
+  const [selectedSectionPill, setSelectedSectionPill] = useState<string>('ALL');
+
   // Modal de confirmación personalizada
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
     isOpen: boolean;
@@ -385,10 +391,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return true;
   });
 
-  // Secciones a mostrar en el panel (agrupadas por sección para no colapsar la pantalla)
-  const sectionsToDisplay = isIndependent
+  // Secciones base del docente
+  const allTeacherSections = isIndependent
     ? myGroups
     : groups.filter(g => userAssignments.some(a => a.groupId === g.id));
+
+  // Grados / Niveles únicos para el selector de filtros
+  const distinctGrades = Array.from(new Set(allTeacherSections.map(g => g.grade))).sort((a, b) => a - b);
+
+  // Secciones filtradas para el panel principal
+  const sectionsToDisplay = allTeacherSections.filter(grp => {
+    // Filtro por píldora de sección específica
+    if (selectedSectionPill !== 'ALL' && grp.id !== selectedSectionPill) return false;
+
+    // Filtro por grado / nivel
+    if (sectionGradeFilter !== 'ALL' && String(grp.grade) !== sectionGradeFilter) return false;
+
+    // Filtro por rol (Docente Guía vs Solo Asignatura)
+    const grpAsgs = userAssignments.filter(a => a.groupId === grp.id);
+    const isGuia = grp.guideTeacherId === currentUser.id || grpAsgs.some(a => a.isGuia);
+    if (sectionRoleFilter === 'GUIA' && !isGuia) return false;
+    if (sectionRoleFilter === 'SUBJECT' && isGuia) return false;
+
+    // Filtro por texto / código de sección
+    if (sectionSearchQuery.trim()) {
+      const q = sectionSearchQuery.toLowerCase().trim();
+      const codeMatch = grp.sectionCode.toLowerCase().includes(q);
+      const nameMatch = grp.groupName?.toLowerCase().includes(q);
+      const specialtyMatch = grp.specialty?.toLowerCase().includes(q);
+      const gradeMatch = `${grp.grade}`.includes(q) || `${grp.grade}°`.includes(q);
+      return codeMatch || nameMatch || specialtyMatch || gradeMatch;
+    }
+
+    return true;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -644,12 +680,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* SECCIÓN PRINCIPAL: Mis Secciones a Cargo (1 Card por Sección) */}
-      {sectionsToDisplay.length > 0 && (
+      {allTeacherSections.length > 0 && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontSize: '1.3rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={20} color="#4f46e5" /> Mis Secciones a Cargo ({sectionsToDisplay.length})
+                <Layers size={20} color="#4f46e5" /> Mis Secciones a Cargo ({sectionsToDisplay.length}{sectionsToDisplay.length !== allTeacherSections.length ? ` de ${allTeacherSections.length}` : ''})
               </h2>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Haz clic en la tarjeta de una sección para ver sus materias asignadas y seleccionar la materia que deseas calificar.
@@ -672,8 +708,147 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          {/* Grid de Secciones */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+          {/* Barra de Filtros de Secciones */}
+          <div className="glass-panel" style={{
+            padding: '14px 18px',
+            marginBottom: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '14px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              {/* Buscador de Sección */}
+              <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar sección (ej. 7-1, 10-A, Décimo, NRC...)"
+                  value={sectionSearchQuery}
+                  onChange={(e) => setSectionSearchQuery(e.target.value)}
+                  className="input-field"
+                  style={{ width: '100%', paddingLeft: '36px', fontSize: '0.85rem' }}
+                />
+                {sectionSearchQuery && (
+                  <button
+                    onClick={() => setSectionSearchQuery('')}
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro por Grado / Nivel */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Filter size={15} color="#4f46e5" />
+                <select
+                  value={sectionGradeFilter}
+                  onChange={(e) => setSectionGradeFilter(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '6px 10px', fontSize: '0.82rem', fontWeight: 600 }}
+                >
+                  <option value="ALL">Todos los Niveles ({distinctGrades.length})</option>
+                  {distinctGrades.map(grade => (
+                    <option key={grade} value={String(grade)}>
+                      {grade}° Año / Nivel
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro por Rol / Guía */}
+              <div>
+                <select
+                  value={sectionRoleFilter}
+                  onChange={(e) => setSectionRoleFilter(e.target.value as any)}
+                  className="input-field"
+                  style={{ padding: '6px 10px', fontSize: '0.82rem', fontWeight: 600 }}
+                >
+                  <option value="ALL">Todas las Funciones</option>
+                  <option value="GUIA">Docente Guía</option>
+                  <option value="SUBJECT">Solo Asignaturas</option>
+                </select>
+              </div>
+
+              {/* Limpiar Filtros */}
+              {(sectionSearchQuery || sectionGradeFilter !== 'ALL' || sectionRoleFilter !== 'ALL' || selectedSectionPill !== 'ALL') && (
+                <button
+                  onClick={() => {
+                    setSectionSearchQuery('');
+                    setSectionGradeFilter('ALL');
+                    setSectionRoleFilter('ALL');
+                    setSelectedSectionPill('ALL');
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.78rem', padding: '4px 8px', color: '#ef4444' }}
+                >
+                  <X size={13} /> Limpiar Filtros
+                </button>
+              )}
+            </div>
+
+            {/* Píldoras rápidas de acceso a cada sección */}
+            {allTeacherSections.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingTop: '4px', borderTop: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: '4px' }}>
+                  Acceso Rápido:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSectionPill('ALL')}
+                  className={`btn btn-sm ${selectedSectionPill === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.74rem', padding: '3px 10px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                >
+                  Todas ({allTeacherSections.length})
+                </button>
+                {allTeacherSections.map(g => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedSectionPill(selectedSectionPill === g.id ? 'ALL' : g.id)}
+                    className={`btn btn-sm ${selectedSectionPill === g.id ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.74rem', padding: '3px 10px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                  >
+                    Secc. {g.sectionCode}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Grid de Secciones o Estado Vacío de Filtro */}
+          {sectionsToDisplay.length === 0 ? (
+            <div className="glass-panel" style={{
+              padding: '36px',
+              textAlign: 'center',
+              borderRadius: '16px',
+              border: '1px dashed var(--border-subtle)',
+              background: 'var(--bg-surface)'
+            }}>
+              <Search size={36} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 6px 0' }}>
+                No se encontraron secciones con los filtros actuales
+              </h4>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+                Prueba con otro término de búsqueda o restablece los filtros para ver todas tus secciones.
+              </p>
+              <button
+                onClick={() => {
+                  setSectionSearchQuery('');
+                  setSectionGradeFilter('ALL');
+                  setSectionRoleFilter('ALL');
+                  setSelectedSectionPill('ALL');
+                }}
+                className="btn btn-secondary btn-sm"
+              >
+                Restablecer Filtros
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
             {sectionsToDisplay.map(grp => {
               const grpStudents = students.filter(s => s.groupId === grp.id);
               const grpAsgs = userAssignments.filter(a => a.groupId === grp.id);
@@ -853,8 +1028,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
       {/* MODAL: Seleccionar Materia de la Sección para Calificar */}
       {sectionModalForGrading && (

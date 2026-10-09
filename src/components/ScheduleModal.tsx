@@ -88,9 +88,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const [classroomInput, setClassroomInput] = useState<string>('');
 
-  // Filtros de resaltado en la matriz semanal
+  // Filtros de visualización en la matriz semanal
   const [highlightGroupId, setHighlightGroupId] = useState<string>('ALL');
   const [highlightSubjectId, setHighlightSubjectId] = useState<string>('ALL');
+  const [filterMode, setFilterMode] = useState<'ISOLATE' | 'DIM'>('ISOLATE');
 
   // Solo horarios de este docente
   const mySchedules = schedules.filter(s => s.teacherId === teacherId);
@@ -242,89 +243,152 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           </div>
         </div>
 
-        {/* Barra de Filtros de Resaltado */}
+        {/* Barra de Filtros de Sección y Materia */}
         <div style={{
-          padding: '10px 24px',
+          padding: '12px 24px',
           background: 'var(--bg-main)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px'
+          flexDirection: 'column',
+          gap: '10px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Resaltar en Matriz:
-            </span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Filtrar Horario:
+              </span>
 
-            {/* Filtrar por Sección */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Users size={14} color="#6366f1" />
-              <select
-                value={highlightGroupId}
-                onChange={(e) => setHighlightGroupId(e.target.value)}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.78rem',
-                  fontWeight: 600
-                }}
-              >
-                <option value="ALL">Todas las Secciones ({myGroups.length})</option>
-                {myGroups.map(g => (
-                  <option key={g.id} value={g.id}>
-                    Sección {g.sectionCode} {g.groupName ? `(${g.groupName})` : ''}
-                  </option>
-                ))}
-              </select>
+              {/* Selector de Sección */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Users size={14} color="#6366f1" />
+                <select
+                  value={highlightGroupId}
+                  onChange={(e) => setHighlightGroupId(e.target.value)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600
+                  }}
+                >
+                  <option value="ALL">Todas las Secciones ({myGroups.length})</option>
+                  {myGroups.map(g => (
+                    <option key={g.id} value={g.id}>
+                      Sección {g.sectionCode} {g.groupName ? `(${g.groupName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Materia */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BookOpen size={14} color="#10b981" />
+                <select
+                  value={highlightSubjectId}
+                  onChange={(e) => setHighlightSubjectId(e.target.value)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600
+                  }}
+                >
+                  <option value="ALL">Todas las Materias ({mySubjects.length})</option>
+                  {mySubjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Toggle de Modo: Solo Mostrar vs Atenuar */}
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-surface)',
+                padding: '2px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                gap: '2px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('ISOLATE')}
+                  className={`btn btn-sm ${filterMode === 'ISOLATE' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                  title="Oculta las lecciones que no coinciden con la sección o materia seleccionada"
+                >
+                  Solo Selección
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('DIM')}
+                  className={`btn btn-sm ${filterMode === 'DIM' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                  title="Mantiene todas las lecciones pero resalta la sección o materia seleccionada"
+                >
+                  Atenuar Resto
+                </button>
+              </div>
+
+              {(highlightGroupId !== 'ALL' || highlightSubjectId !== 'ALL') && (
+                <button
+                  onClick={() => {
+                    setHighlightGroupId('ALL');
+                    setHighlightSubjectId('ALL');
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.74rem', padding: '3px 8px', color: '#ef4444' }}
+                >
+                  Restablecer
+                </button>
+              )}
             </div>
 
-            {/* Filtrar por Materia */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <BookOpen size={14} color="#10b981" />
-              <select
-                value={highlightSubjectId}
-                onChange={(e) => setHighlightSubjectId(e.target.value)}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.78rem',
-                  fontWeight: 600
-                }}
-              >
-                <option value="ALL">Todas las Materias ({mySubjects.length})</option>
-                {mySubjects.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              💡 Clic en cualquier lección colocada para evaluarla de inmediato.
             </div>
+          </div>
 
-            {(highlightGroupId !== 'ALL' || highlightSubjectId !== 'ALL') && (
+          {/* Píldoras rápidas de acceso a secciones en el Horario */}
+          {myGroups.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingTop: '4px', borderTop: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: '4px' }}>
+                Sección:
+              </span>
               <button
-                onClick={() => {
-                  setHighlightGroupId('ALL');
-                  setHighlightSubjectId('ALL');
-                }}
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: '0.72rem', padding: '2px 6px' }}
+                type="button"
+                onClick={() => setHighlightGroupId('ALL')}
+                className={`btn btn-sm ${highlightGroupId === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap' }}
               >
-                Quitar Resaltado
+                Todas ({myGroups.length})
               </button>
-            )}
-          </div>
-
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            💡 Clic en cualquier lección colocada para evaluarla de inmediato.
-          </div>
+              {myGroups.map(g => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setHighlightGroupId(highlightGroupId === g.id ? 'ALL' : g.id)}
+                  className={`btn btn-sm ${highlightGroupId === g.id ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                >
+                  Secc. {g.sectionCode}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Cuerpo Principal: Paleta Drag & Drop a la izquierda + Matriz Semanal a la derecha */}
@@ -750,10 +814,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                             const slotSubject = existingSlot ? subjects.find(s => s.id === existingSlot.subjectId) : null;
                             const asg = existingSlot ? assignments.find(a => a.groupId === existingSlot.groupId && a.subjectId === existingSlot.subjectId) : null;
 
-                            // Comprobar si coincide con el filtro de resaltado
+                            // Comprobar si coincide con el filtro
                             const isGroupMatch = highlightGroupId === 'ALL' || existingSlot?.groupId === highlightGroupId;
                             const isSubjectMatch = highlightSubjectId === 'ALL' || existingSlot?.subjectId === highlightSubjectId;
                             const isHighlighted = isGroupMatch && isSubjectMatch;
+                            const isFilteredOut = (highlightGroupId !== 'ALL' || highlightSubjectId !== 'ALL') && !isHighlighted;
+                            const isHiddenByFilter = isFilteredOut && filterMode === 'ISOLATE';
 
                             return (
                               <td
@@ -773,7 +839,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                                   }
                                 }}
                                 onClick={() => {
-                                  if (selectedItemForClick && !existingSlot) {
+                                  if (selectedItemForClick && (!existingSlot || isHiddenByFilter)) {
                                     handleAssignToSlot(
                                       day.dayOfWeek,
                                       slot.startTime,
@@ -788,17 +854,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                                   borderRight: '1px solid var(--border-subtle)',
                                   height: '62px',
                                   verticalAlign: 'middle',
-                                  background: existingSlot
+                                  background: (existingSlot && !isHiddenByFilter)
                                     ? (isHighlighted ? 'var(--bg-main)' : 'rgba(0,0,0,0.05)')
                                     : selectedItemForClick
                                     ? 'rgba(79, 70, 229, 0.04)'
                                     : 'transparent',
-                                  opacity: existingSlot && !isHighlighted ? 0.35 : 1,
-                                  cursor: selectedItemForClick && !existingSlot ? 'pointer' : 'default',
+                                  opacity: (existingSlot && !isHiddenByFilter && isFilteredOut) ? 0.3 : 1,
+                                  cursor: selectedItemForClick && (!existingSlot || isHiddenByFilter) ? 'pointer' : 'default',
                                   transition: 'background 0.15s ease, opacity 0.2s ease'
                                 }}
                               >
-                                {existingSlot ? (
+                                {existingSlot && !isHiddenByFilter ? (
                                   <div style={{
                                     background: slotSubject?.color ? `${slotSubject.color}15` : 'rgba(79, 70, 229, 0.12)',
                                     border: `1.5px solid ${slotSubject?.color || '#4f46e5'}`,
