@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   UploadCloud
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { User, Institution } from '../types';
 import { db, exportDatabaseBackup, importDatabaseBackup } from '../db';
 
@@ -558,30 +559,40 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* MODAL: GESTIÓN DE PERFIL Y SEGURIDAD DEL USUARIO */}
-      {isProfileModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 3500,
-          padding: '20px'
-        }}>
-          <div className="glass-panel" style={{
+      {isProfileModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsProfileModalOpen(false);
+          }}
+        >
+          <div style={{
             width: '100%',
             maxWidth: '560px',
-            maxHeight: '90vh',
+            maxHeight: 'min(86vh, 740px)',
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: '22px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.45)',
+            borderRadius: '24px',
+            background: isDarkMode ? '#1e293b' : '#ffffff',
+            border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.65)',
             animation: 'fadeIn 0.2s ease-out',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            margin: 'auto'
           }}>
             {/* Modal Header */}
             <div style={{
@@ -1028,7 +1039,8 @@ export const Header: React.FC<HeaderProps> = ({
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );
