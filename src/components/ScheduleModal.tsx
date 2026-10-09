@@ -12,8 +12,10 @@ import {
   BookOpen,
   Printer,
   Layers,
-  ChevronRight,
-  CheckCircle2
+  GripVertical,
+  Info,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import type { ScheduleItem, Group, Subject, TeacherAssignment } from '../types';
 import { db } from '../db';
@@ -29,26 +31,29 @@ interface ScheduleModalProps {
   onRefreshSchedules: () => void;
 }
 
-const DAYS = [
-  { id: 1, name: 'Lunes', short: 'LUN' },
-  { id: 2, name: 'Martes', short: 'MAR' },
-  { id: 3, name: 'Miércoles', short: 'MIÉ' },
-  { id: 4, name: 'Jueves', short: 'JUE' },
-  { id: 5, name: 'Viernes', short: 'VIE' }
+// Bloques estándar de lecciones MEP Costa Rica
+const MEP_TIME_SLOTS = [
+  { slotIndex: 1, label: 'Lección 1', startTime: '07:00', endTime: '07:40' },
+  { slotIndex: 2, label: 'Lección 2', startTime: '07:40', endTime: '08:20' },
+  // Receso 08:20 - 08:35
+  { slotIndex: 3, label: 'Lección 3', startTime: '08:35', endTime: '09:15' },
+  { slotIndex: 4, label: 'Lección 4', startTime: '09:15', endTime: '09:55' },
+  // Receso 09:55 - 10:15
+  { slotIndex: 5, label: 'Lección 5', startTime: '10:15', endTime: '10:55' },
+  { slotIndex: 6, label: 'Lección 6', startTime: '10:55', endTime: '11:35' },
+  // Almuerzo 11:35 - 12:15
+  { slotIndex: 7, label: 'Lección 7', startTime: '12:15', endTime: '12:55' },
+  { slotIndex: 8, label: 'Lección 8', startTime: '12:55', endTime: '13:35' },
+  { slotIndex: 9, label: 'Lección 9', startTime: '13:35', endTime: '14:15' },
+  { slotIndex: 10, label: 'Lección 10', startTime: '14:15', endTime: '14:55' }
 ];
 
-// Presets de bloques MEP estándar Costa Rica
-const MEP_PRESETS = [
-  { label: 'L1', time: '07:00 - 07:40', start: '07:00', end: '07:40' },
-  { label: 'L2', time: '07:40 - 08:20', start: '07:40', end: '08:20' },
-  { label: 'L3', time: '08:35 - 09:15', start: '08:35', end: '09:15' },
-  { label: 'L4', time: '09:15 - 09:55', start: '09:15', end: '09:55' },
-  { label: 'L5', time: '10:15 - 10:55', start: '10:15', end: '10:55' },
-  { label: 'L6', time: '10:55 - 11:35', start: '10:55', end: '11:35' },
-  { label: 'L7', time: '12:15 - 12:55', start: '12:15', end: '12:55' },
-  { label: 'L8', time: '12:55 - 13:35', start: '12:55', end: '13:35' },
-  { label: 'L9', time: '13:35 - 14:15', start: '13:35', end: '14:15' },
-  { label: 'L10', time: '14:15 - 14:55', start: '14:15', end: '14:55' }
+const WEEK_DAYS: { dayOfWeek: 1 | 2 | 3 | 4 | 5; label: string; short: string }[] = [
+  { dayOfWeek: 1, label: 'Lunes', short: 'LUN' },
+  { dayOfWeek: 2, label: 'Martes', short: 'MAR' },
+  { dayOfWeek: 3, label: 'Miércoles', short: 'MIÉ' },
+  { dayOfWeek: 4, label: 'Jueves', short: 'JUE' },
+  { dayOfWeek: 5, label: 'Viernes', short: 'VIE' }
 ];
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({
@@ -61,93 +66,91 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   onStartEvaluatingClass,
   onRefreshSchedules
 }) => {
-  // Filtros principales
-  const [selectedDay, setSelectedDay] = useState<number | 0>(1); // 0 = Toda la semana
-  const [filterGroupId, setFilterGroupId] = useState<string>('ALL');
-  const [filterSubjectId, setFilterSubjectId] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<'timeline' | 'by-group' | 'by-subject'>('timeline');
+  // Paleta izquierda: organizar por Materia o por Sección
+  const [paletteMode, setPaletteMode] = useState<'by-group' | 'by-subject'>('by-group');
+  const [selectedPaletteGroupId, setSelectedPaletteGroupId] = useState<string>('');
+  const [selectedPaletteSubjectId, setSelectedPaletteSubjectId] = useState<string>('');
 
-  // Formulario para agregar bloque
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addFormGroupId, setAddFormGroupId] = useState<string>(assignments[0]?.groupId || groups[0]?.id || '');
-  const [addFormSubjectId, setAddFormSubjectId] = useState<string>(assignments[0]?.subjectId || subjects[0]?.id || '');
-  const [addFormDay, setAddFormDay] = useState<number>(selectedDay === 0 ? 1 : selectedDay);
-  const [startTime, setStartTime] = useState('07:00');
-  const [endTime, setEndTime] = useState('08:20');
-  const [classroom, setClassroom] = useState('Aula 12');
+  // Item seleccionado para arrastrar o hacer clic
+  const [selectedItemForClick, setSelectedItemForClick] = useState<{
+    groupId: string;
+    subjectId: string;
+    groupCode: string;
+    subjectName: string;
+  } | null>(null);
 
-  // Filtrar horarios solo para este docente
+  const [draggedItem, setDraggedItem] = useState<{
+    groupId: string;
+    subjectId: string;
+    groupCode: string;
+    subjectName: string;
+  } | null>(null);
+
+  const [classroomInput, setClassroomInput] = useState<string>('');
+
+  // Filtros de resaltado en la matriz semanal
+  const [highlightGroupId, setHighlightGroupId] = useState<string>('ALL');
+  const [highlightSubjectId, setHighlightSubjectId] = useState<string>('ALL');
+
+  // Solo horarios de este docente
   const mySchedules = schedules.filter(s => s.teacherId === teacherId);
 
-  // Obtener secciones y materias únicas que imparte el docente
+  // Secciones y materias únicas de este docente
   const myGroupIds = Array.from(new Set(assignments.map(a => a.groupId)));
   const myGroups = groups.filter(g => myGroupIds.includes(g.id));
 
   const mySubjectIds = Array.from(new Set(assignments.map(a => a.subjectId)));
   const mySubjects = subjects.filter(s => mySubjectIds.includes(s.id));
 
-  // Al cambiar el grupo en el formulario de creación, ajustar materias correspondientes
-  const availableSubjectsForSelectedGroup = mySubjects.filter(sub =>
-    assignments.some(a => a.groupId === addFormGroupId && a.subjectId === sub.id)
-  );
+  const activePaletteGroup = myGroups.find(g => g.id === selectedPaletteGroupId) || myGroups[0];
+  const activePaletteSubject = mySubjects.find(s => s.id === selectedPaletteSubjectId) || mySubjects[0];
 
-  const handleGroupChangeInAdd = (groupId: string) => {
-    setAddFormGroupId(groupId);
-    const validSubs = mySubjects.filter(sub =>
-      assignments.some(a => a.groupId === groupId && a.subjectId === sub.id)
+  // Asignar bloque al soltar o hacer clic en una casilla
+  const handleAssignToSlot = async (
+    dayOfWeek: 1 | 2 | 3 | 4 | 5,
+    startTime: string,
+    endTime: string,
+    groupId: string,
+    subjectId: string
+  ) => {
+    // Si ya existe una lección a esa hora para el docente, se actualiza
+    const existing = mySchedules.find(
+      s => s.dayOfWeek === dayOfWeek && s.startTime === startTime
     );
-    if (validSubs.length > 0 && !validSubs.some(s => s.id === addFormSubjectId)) {
-      setAddFormSubjectId(validSubs[0].id);
+    if (existing) {
+      await db.schedules.delete(existing.id);
     }
+
     const grp = groups.find(g => g.id === groupId);
-    if (grp) {
-      setClassroom(`Aula ${grp.sectionCode}`);
-    }
-  };
-
-  // Filtrar lecciones según los filtros activos
-  const filteredSchedules = mySchedules.filter(sch => {
-    if (selectedDay !== 0 && sch.dayOfWeek !== selectedDay) return false;
-    if (filterGroupId !== 'ALL' && sch.groupId !== filterGroupId) return false;
-    if (filterSubjectId !== 'ALL' && sch.subjectId !== filterSubjectId) return false;
-    return true;
-  }).sort((a, b) => {
-    if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
-    return a.startTime.localeCompare(b.startTime);
-  });
-
-  const handleAddSchedule = async () => {
-    if (!addFormGroupId || !addFormSubjectId) {
-      alert('Por favor selecciona una sección y materia válidas.');
-      return;
-    }
+    const defaultAula = classroomInput.trim() || (grp ? `Aula ${grp.sectionCode}` : 'Aula Principal');
 
     const newItem: ScheduleItem = {
       id: `sch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       teacherId,
-      groupId: addFormGroupId,
-      subjectId: addFormSubjectId,
-      dayOfWeek: addFormDay as 1 | 2 | 3 | 4 | 5,
+      groupId,
+      subjectId,
+      dayOfWeek,
       startTime,
       endTime,
-      classroom: classroom.trim() || undefined
+      classroom: defaultAula
     };
 
     await db.schedules.add(newItem);
     onRefreshSchedules();
-    setShowAddForm(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('¿Deseas eliminar este bloque del horario?')) {
-      await db.schedules.delete(id);
+  const handleDeleteSlot = async (scheduleId: string) => {
+    await db.schedules.delete(scheduleId);
+    onRefreshSchedules();
+  };
+
+  const handleClearAll = async () => {
+    if (window.confirm('¿Estás seguro de vaciar todo tu horario semanal?')) {
+      for (const sch of mySchedules) {
+        await db.schedules.delete(sch.id);
+      }
       onRefreshSchedules();
     }
-  };
-
-  const applyPreset = (start: string, end: string) => {
-    setStartTime(start);
-    setEndTime(end);
   };
 
   return (
@@ -157,27 +160,27 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
       backdropFilter: 'blur(8px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 100,
-      padding: '20px'
+      padding: '16px'
     }}>
       <div className="glass-panel" style={{
         width: '100%',
-        maxWidth: '960px',
-        maxHeight: '92vh',
+        maxWidth: '1240px',
+        maxHeight: '94vh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
         border: '1px solid var(--border-subtle)'
       }}>
-        {/* Header Superior */}
+        {/* Encabezado Superior */}
         <div style={{
-          padding: '18px 24px',
+          padding: '16px 24px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -201,14 +204,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-                  Horario de Clases
+                  Horario Semanal Interactivo
                 </h2>
-                <span className="badge" style={{ background: '#4f46e5', color: 'white', fontSize: '0.75rem', fontWeight: 700 }}>
+                <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800 }}>
                   {mySchedules.length} lecciones programadas
                 </span>
               </div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-                Organiza y consulta tu horario por sección, por materia o cronológicamente.
+                Arrastra o haz clic en tus secciones y materias hacia cualquier hora de la matriz para armar tu horario.
               </p>
             </div>
           </div>
@@ -222,48 +225,52 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               <Printer size={15} />
               <span>Imprimir</span>
             </button>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="btn btn-primary btn-sm"
-              style={{ fontWeight: 700 }}
-            >
-              <Plus size={16} />
-              <span>Agregar Bloque</span>
-            </button>
+            {mySchedules.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="btn btn-ghost btn-sm"
+                style={{ color: '#ef4444' }}
+                title="Vaciar todo el horario"
+              >
+                <Trash2 size={15} />
+                <span>Vaciar</span>
+              </button>
+            )}
             <button onClick={onClose} className="btn btn-secondary btn-sm" style={{ padding: '6px' }}>
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Barra de Filtros: Por Grupo/Sección, Por Materia y Modo de Vista */}
+        {/* Barra de Filtros de Resaltado */}
         <div style={{
-          padding: '12px 24px',
+          padding: '10px 24px',
           background: 'var(--bg-main)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
           gap: '12px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* Filtro por Sección */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              Resaltar en Matriz:
+            </span>
+
+            {/* Filtrar por Sección */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Users size={16} color="#6366f1" />
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                Sección:
-              </label>
+              <Users size={14} color="#6366f1" />
               <select
-                value={filterGroupId}
-                onChange={(e) => setFilterGroupId(e.target.value)}
+                value={highlightGroupId}
+                onChange={(e) => setHighlightGroupId(e.target.value)}
                 style={{
-                  padding: '5px 10px',
-                  borderRadius: '8px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
                   border: '1px solid var(--border-subtle)',
                   background: 'var(--bg-card)',
                   color: 'var(--text-main)',
-                  fontSize: '0.82rem',
+                  fontSize: '0.78rem',
                   fontWeight: 600
                 }}
               >
@@ -276,22 +283,19 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </select>
             </div>
 
-            {/* Filtro por Materia */}
+            {/* Filtrar por Materia */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <BookOpen size={16} color="#10b981" />
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                Materia:
-              </label>
+              <BookOpen size={14} color="#10b981" />
               <select
-                value={filterSubjectId}
-                onChange={(e) => setFilterSubjectId(e.target.value)}
+                value={highlightSubjectId}
+                onChange={(e) => setHighlightSubjectId(e.target.value)}
                 style={{
-                  padding: '5px 10px',
-                  borderRadius: '8px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
                   border: '1px solid var(--border-subtle)',
                   background: 'var(--bg-card)',
                   color: 'var(--text-main)',
-                  fontSize: '0.82rem',
+                  fontSize: '0.78rem',
                   fontWeight: 600
                 }}
               >
@@ -304,671 +308,648 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </select>
             </div>
 
-            {/* Resetear filtros */}
-            {(filterGroupId !== 'ALL' || filterSubjectId !== 'ALL' || selectedDay === 0) && (
+            {(highlightGroupId !== 'ALL' || highlightSubjectId !== 'ALL') && (
               <button
                 onClick={() => {
-                  setFilterGroupId('ALL');
-                  setFilterSubjectId('ALL');
-                  setSelectedDay(1);
+                  setHighlightGroupId('ALL');
+                  setHighlightSubjectId('ALL');
                 }}
                 className="btn btn-ghost btn-sm"
-                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                style={{ fontSize: '0.72rem', padding: '2px 6px' }}
               >
-                Limpiar Filtros
+                Quitar Resaltado
               </button>
             )}
           </div>
 
-          {/* Selector de Modo de Vista */}
-          <div style={{
-            display: 'flex',
-            background: 'var(--bg-surface)',
-            padding: '3px',
-            borderRadius: '8px',
-            border: '1px solid var(--border-subtle)',
-            gap: '3px'
-          }}>
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`btn btn-sm ${viewMode === 'timeline' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-            >
-              <Calendar size={13} />
-              <span>Cronológico</span>
-            </button>
-            <button
-              onClick={() => setViewMode('by-group')}
-              className={`btn btn-sm ${viewMode === 'by-group' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-            >
-              <Users size={13} />
-              <span>Por Sección</span>
-            </button>
-            <button
-              onClick={() => setViewMode('by-subject')}
-              className={`btn btn-sm ${viewMode === 'by-subject' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-            >
-              <BookOpen size={13} />
-              <span>Por Materia</span>
-            </button>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            💡 Clic en cualquier lección colocada para evaluarla de inmediato.
           </div>
         </div>
 
-        {/* Tabs de Días (si estamos en vista cronológica o se desea filtrar por día) */}
+        {/* Cuerpo Principal: Paleta Drag & Drop a la izquierda + Matriz Semanal a la derecha */}
         <div style={{
-          display: 'flex',
-          background: 'var(--bg-surface)',
-          padding: '8px 24px',
-          gap: '8px',
-          borderBottom: '1px solid var(--border-subtle)',
-          overflowX: 'auto',
-          alignItems: 'center'
+          display: 'grid',
+          gridTemplateColumns: 'minmax(280px, 320px) 1fr',
+          gap: '18px',
+          padding: '18px 24px',
+          overflowY: 'auto',
+          flex: 1
         }}>
-          <button
-            onClick={() => setSelectedDay(0)}
-            className={`btn btn-sm ${selectedDay === 0 ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ minWidth: '120px', fontWeight: selectedDay === 0 ? 800 : 500 }}
-          >
-            Toda la Semana
-          </button>
-          {DAYS.map(day => {
-            const countThisDay = mySchedules.filter(s => s.dayOfWeek === day.id).length;
-            return (
-              <button
-                key={day.id}
-                onClick={() => setSelectedDay(day.id)}
-                className={`btn btn-sm ${selectedDay === day.id ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ minWidth: '95px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                <span>{day.name}</span>
-                {countThisDay > 0 && (
-                  <span style={{
-                    fontSize: '0.7rem',
-                    padding: '1px 5px',
-                    borderRadius: '999px',
-                    background: selectedDay === day.id ? 'rgba(255,255,255,0.25)' : 'rgba(79, 70, 229, 0.15)',
-                    color: selectedDay === day.id ? '#fff' : '#4f46e5'
-                  }}>
-                    {countThisDay}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Formulario Desplegable para Agregar Bloque */}
-        {showAddForm && (
-          <div style={{
-            padding: '20px 24px',
-            background: 'var(--bg-surface)',
-            borderBottom: '2px solid #4f46e5',
+          
+          {/* PALETA IZQUIERDA: SECCIONES Y MATERIAS ARRASTRABLES */}
+          <div className="glass-panel" style={{
+            padding: '16px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px'
+            gap: '14px',
+            height: 'fit-content',
+            background: 'var(--bg-surface)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Plus size={18} color="#4f46e5" />
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0 }}>
-                  Nuevo Bloque de Lección
-                </h4>
-              </div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Completa los datos para asignar el horario
-              </span>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '14px',
-              alignItems: 'start'
-            }}>
-              {/* 1. Selector de Sección */}
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
-                  1. Grupo o Sección:
-                </label>
-                <select
-                  value={addFormGroupId}
-                  onChange={(e) => handleGroupChangeInAdd(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: 600
-                  }}
-                >
-                  {myGroups.map(grp => (
-                    <option key={grp.id} value={grp.id}>
-                      Sección {grp.sectionCode} {grp.groupName ? `(${grp.groupName})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 2. Selector de Materia */}
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
-                  2. Materia a Impartir:
-                </label>
-                <select
-                  value={addFormSubjectId}
-                  onChange={(e) => setAddFormSubjectId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: 600
-                  }}
-                >
-                  {(availableSubjectsForSelectedGroup.length > 0 ? availableSubjectsForSelectedGroup : mySubjects).map(sub => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 3. Día de la Semana */}
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
-                  3. Día de la Semana:
-                </label>
-                <select
-                  value={addFormDay}
-                  onChange={(e) => setAddFormDay(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: 600
-                  }}
-                >
-                  {DAYS.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 4. Aula / Espacio */}
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
-                  4. Aula / Laboratorio:
-                </label>
-                <input
-                  type="text"
-                  value={classroom}
-                  onChange={(e) => setClassroom(e.target.value)}
-                  placeholder="Ej. Aula 12, Laboratorio 2..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Horario & Presets de Lecciones MEP */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  Horario de la Lección:
-                </label>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  Atajos de lecciones oficiales MEP:
-                </span>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Organizar Paleta por:
               </div>
-
-              {/* Presets rápidos */}
-              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', marginBottom: '8px' }}>
-                {MEP_PRESETS.map(p => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => applyPreset(p.start, p.end)}
-                    className="btn btn-secondary btn-sm"
-                    style={{
-                      fontSize: '0.72rem',
-                      padding: '3px 8px',
-                      background: startTime === p.start && endTime === p.end ? '#4f46e5' : undefined,
-                      color: startTime === p.start && endTime === p.end ? 'white' : undefined
-                    }}
-                    title={p.time}
-                  >
-                    {p.label} ({p.start})
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Desde:</span>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      background: 'var(--bg-card)',
-                      color: 'var(--text-main)',
-                      fontSize: '0.85rem',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hasta:</span>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      background: 'var(--bg-card)',
-                      color: 'var(--text-main)',
-                      fontSize: '0.85rem',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddSchedule}
-                    className="btn btn-primary btn-sm"
-                    style={{ fontWeight: 800, padding: '8px 16px' }}
-                  >
-                    Guardar Bloque
-                  </button>
-                </div>
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-main)',
+                padding: '3px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                marginTop: '6px',
+                gap: '2px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaletteMode('by-group');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${paletteMode === 'by-group' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '4px 6px' }}
+                >
+                  <Users size={13} />
+                  <span>Por Sección</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaletteMode('by-subject');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${paletteMode === 'by-subject' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '4px 6px' }}
+                >
+                  <BookOpen size={13} />
+                  <span>Por Materia</span>
+                </button>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Contenido Principal de Lecciones según el Modo de Vista */}
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-          {filteredSchedules.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '48px 20px',
-              color: 'var(--text-muted)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <Calendar size={40} strokeWidth={1.5} color="var(--text-muted)" />
+            {/* CASO 1: ORGANIZAR POR SECCIÓN (Eliges Sección -> Arrastras Materias) */}
+            {paletteMode === 'by-group' && (
               <div>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-main)' }}>
-                  No hay lecciones que coincidan con los filtros
-                </h4>
-                <p style={{ fontSize: '0.82rem', margin: 0 }}>
-                  Intenta cambiar el día, seleccionar otra sección o haz clic en "Agregar Bloque" para crear una nueva clase.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="btn btn-primary btn-sm"
-                style={{ marginTop: '8px' }}
-              >
-                <Plus size={15} />
-                Agregar Lección Ahora
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* VISTA 1: CRONOLÓGICA (Día / Semana) */}
-              {viewMode === 'timeline' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {filteredSchedules.map(sch => {
-                    const group = groups.find(g => g.id === sch.groupId);
-                    const subject = subjects.find(s => s.id === sch.subjectId);
-                    const asg = assignments.find(a => a.groupId === sch.groupId && a.subjectId === sch.subjectId);
-                    const dayObj = DAYS.find(d => d.id === sch.dayOfWeek);
-
+                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                  1. Selecciona Sección a Programar:
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto' }}>
+                  {myGroups.map(grp => {
+                    const isGrpActive = activePaletteGroup?.id === grp.id;
+                    const countForGrp = assignments.filter(a => a.groupId === grp.id && a.teacherId === teacherId).length;
                     return (
-                      <div
-                        key={sch.id}
-                        className="glass-panel"
+                      <button
+                        key={grp.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPaletteGroupId(grp.id);
+                          setSelectedItemForClick(null);
+                        }}
                         style={{
-                          padding: '16px 20px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${isGrpActive ? '#4f46e5' : 'var(--border-subtle)'}`,
+                          background: isGrpActive ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          gap: '16px',
-                          borderLeft: `4px solid ${subject?.color || '#4f46e5'}`,
-                          transition: 'transform 0.15s ease'
+                          cursor: 'pointer',
+                          textAlign: 'left'
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          {/* Hora y Día */}
-                          <div style={{
-                            padding: '10px 14px',
-                            background: 'var(--bg-surface)',
-                            borderRadius: '12px',
-                            border: '1px solid var(--border-subtle)',
-                            textAlign: 'center',
-                            minWidth: '95px'
-                          }}>
-                            {selectedDay === 0 && (
-                              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase' }}>
-                                {dayObj?.name}
-                              </div>
-                            )}
-                            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
-                              {sch.startTime}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                              {sch.endTime}
-                            </div>
-                          </div>
-
-                          {/* Info Grupo y Materia */}
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800 }}>
-                                Sección {group?.sectionCode || 'N/A'}
-                              </span>
-                              {group?.groupName && (
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  ({group.groupName})
-                                </span>
-                              )}
-                              {sch.classroom && (
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <MapPin size={12} /> {sch.classroom}
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontWeight: 800, fontSize: '1.05rem', marginTop: '4px', color: 'var(--text-main)' }}>
-                              {subject?.name || 'Materia'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Botones de acción */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {asg && (
-                            <button
-                              onClick={() => {
-                                onStartEvaluatingClass(asg.id);
-                                onClose();
-                              }}
-                              className="btn btn-primary btn-sm"
-                              title="Evaluar asistencia y notas directamente"
-                              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-                            >
-                              <Play size={13} />
-                              <span>Evaluar Clase</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDelete(sch.id)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ color: '#ef4444', padding: '6px' }}
-                            title="Eliminar bloque de horario"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
+                        <span style={{ fontWeight: isGrpActive ? 800 : 600, fontSize: '0.82rem' }}>
+                          Sección {grp.sectionCode} {grp.groupName ? `(${grp.groupName})` : ''}
+                        </span>
+                        <span className="badge" style={{ fontSize: '0.68rem' }}>
+                          {countForGrp} materias
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
-              )}
 
-              {/* VISTA 2: ORGANIZADO POR GRUPO / SECCIÓN */}
-              {viewMode === 'by-group' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {myGroups
-                    .filter(g => filterGroupId === 'ALL' || g.id === filterGroupId)
-                    .map(group => {
-                      const groupSchedules = filteredSchedules.filter(s => s.groupId === group.id);
-                      if (groupSchedules.length === 0) return null;
+                <div style={{ marginTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                      2. Materias a impartir:
+                    </label>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      Arrastra al horario
+                    </span>
+                  </div>
 
-                      return (
-                        <div
-                          key={group.id}
-                          className="glass-panel"
-                          style={{
-                            padding: '18px 20px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
-                            background: 'var(--bg-surface)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.85rem' }}>
-                                Sección {group.sectionCode}
-                              </span>
-                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                                {group.groupName || `Grupo ${group.grade}° año`}
-                              </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {assignments
+                      .filter(a => a.groupId === activePaletteGroup?.id && a.teacherId === teacherId)
+                      .map(asg => {
+                        const sub = subjects.find(s => s.id === asg.subjectId);
+                        const grp = activePaletteGroup;
+                        const groupCode = grp?.groupName || `Sección ${grp?.sectionCode || 'N/A'}`;
+                        const subjectName = sub?.name || 'Materia';
+                        const countScheduled = mySchedules.filter(
+                          s => s.groupId === asg.groupId && s.subjectId === asg.subjectId
+                        ).length;
+
+                        const isSelected = selectedItemForClick?.groupId === asg.groupId &&
+                                           selectedItemForClick?.subjectId === asg.subjectId;
+
+                        const payload = {
+                          groupId: asg.groupId,
+                          subjectId: asg.subjectId,
+                          groupCode,
+                          subjectName
+                        };
+
+                        return (
+                          <div
+                            key={asg.id}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              setDraggedItem(payload);
+                              e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                            }}
+                            onDragEnd={() => setDraggedItem(null)}
+                            onClick={() => {
+                              setSelectedItemForClick(isSelected ? null : payload);
+                            }}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
+                              background: isSelected ? 'rgba(79, 70, 229, 0.12)' : 'var(--bg-main)',
+                              cursor: 'grab',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <GripVertical size={14} color="var(--text-muted)" />
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: sub?.color || '#4f46e5' }}>
+                                  {subjectName}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  {groupCode}
+                                </div>
+                              </div>
                             </div>
-                            <span className="badge" style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', fontWeight: 700 }}>
-                              {groupSchedules.length} {groupSchedules.length === 1 ? 'lección' : 'lecciones'}
+                            <span className="badge" style={{
+                              background: countScheduled > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
+                              color: countScheduled > 0 ? '#10b981' : 'var(--text-muted)',
+                              fontSize: '0.7rem',
+                              fontWeight: 700
+                            }}>
+                              {countScheduled} lec.
                             </span>
                           </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-                            {groupSchedules.map(sch => {
-                              const sub = subjects.find(s => s.id === sch.subjectId);
-                              const asg = assignments.find(a => a.groupId === sch.groupId && a.subjectId === sch.subjectId);
-                              const dayObj = DAYS.find(d => d.id === sch.dayOfWeek);
-
-                              return (
-                                <div
-                                  key={sch.id}
-                                  style={{
-                                    padding: '12px 14px',
-                                    borderRadius: '10px',
-                                    background: 'var(--bg-main)',
-                                    border: `1px solid ${sub?.color || 'var(--border-subtle)'}`,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '8px'
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                      <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                                        {sub?.name}
-                                      </div>
-                                      <div style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 700, marginTop: '2px' }}>
-                                        {dayObj?.name} • {sch.startTime} - {sch.endTime}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => handleDelete(sch.id)}
-                                      className="btn btn-ghost btn-sm"
-                                      style={{ color: '#ef4444', padding: '2px' }}
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </div>
-
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                                    {sch.classroom ? (
-                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        <MapPin size={11} style={{ display: 'inline', marginRight: '3px' }} />
-                                        {sch.classroom}
-                                      </span>
-                                    ) : <span />}
-
-                                    {asg && (
-                                      <button
-                                        onClick={() => {
-                                          onStartEvaluatingClass(asg.id);
-                                          onClose();
-                                        }}
-                                        className="btn btn-primary btn-sm"
-                                        style={{ fontSize: '0.72rem', padding: '4px 8px' }}
-                                      >
-                                        <Play size={11} /> Evaluar
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                  </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* VISTA 3: ORGANIZADO POR MATERIA */}
-              {viewMode === 'by-subject' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {mySubjects
-                    .filter(s => filterSubjectId === 'ALL' || s.id === filterSubjectId)
-                    .map(subject => {
-                      const subjectSchedules = filteredSchedules.filter(s => s.subjectId === subject.id);
-                      if (subjectSchedules.length === 0) return null;
+            {/* CASO 2: ORGANIZAR POR MATERIA (Eliges Materia -> Arrastras Secciones) */}
+            {paletteMode === 'by-subject' && (
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                  1. Selecciona Materia a Programar:
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto' }}>
+                  {mySubjects.map(sub => {
+                    const isSubActive = activePaletteSubject?.id === sub.id;
+                    const countForSub = assignments.filter(a => a.subjectId === sub.id && a.teacherId === teacherId).length;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPaletteSubjectId(sub.id);
+                          setSelectedItemForClick(null);
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${isSubActive ? sub.color || '#4f46e5' : 'var(--border-subtle)'}`,
+                          background: isSubActive ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: sub.color || '#4f46e5' }} />
+                          <span style={{ fontWeight: isSubActive ? 800 : 600, fontSize: '0.82rem' }}>
+                            {sub.name}
+                          </span>
+                        </div>
+                        <span className="badge" style={{ fontSize: '0.68rem' }}>
+                          {countForSub} grupos
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                      return (
-                        <div
-                          key={subject.id}
-                          className="glass-panel"
-                          style={{
-                            padding: '18px 20px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
+                <div style={{ marginTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                      2. Secciones a ubicar:
+                    </label>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      Arrastra al horario
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {assignments
+                      .filter(a => a.subjectId === activePaletteSubject?.id && a.teacherId === teacherId)
+                      .map(asg => {
+                        const grp = groups.find(g => g.id === asg.groupId);
+                        const sub = activePaletteSubject;
+                        const groupCode = grp?.groupName || `Sección ${grp?.sectionCode || 'N/A'}`;
+                        const subjectName = sub?.name || 'Materia';
+                        const countScheduled = mySchedules.filter(
+                          s => s.groupId === asg.groupId && s.subjectId === asg.subjectId
+                        ).length;
+
+                        const isSelected = selectedItemForClick?.groupId === asg.groupId &&
+                                           selectedItemForClick?.subjectId === asg.subjectId;
+
+                        const payload = {
+                          groupId: asg.groupId,
+                          subjectId: asg.subjectId,
+                          groupCode,
+                          subjectName
+                        };
+
+                        return (
+                          <div
+                            key={asg.id}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              setDraggedItem(payload);
+                              e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                            }}
+                            onDragEnd={() => setDraggedItem(null)}
+                            onClick={() => {
+                              setSelectedItemForClick(isSelected ? null : payload);
+                            }}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
+                              background: isSelected ? 'rgba(79, 70, 229, 0.12)' : 'var(--bg-main)',
+                              cursor: 'grab',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <GripVertical size={14} color="var(--text-muted)" />
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>
+                                  {groupCode}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: sub?.color || '#4f46e5', fontWeight: 600 }}>
+                                  {subjectName}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="badge" style={{
+                              background: countScheduled > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
+                              color: countScheduled > 0 ? '#10b981' : 'var(--text-muted)',
+                              fontSize: '0.7rem',
+                              fontWeight: 700
+                            }}>
+                              {countScheduled} lec.
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Aula sugerida por defecto */}
+            <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                Aula / Laboratorio por defecto:
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Aula 10-1, Lab 2..."
+                value={classroomInput}
+                onChange={(e) => setClassroomInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.8rem'
+                }}
+              />
+            </div>
+
+            {/* Tip interactivo */}
+            <div style={{
+              background: 'rgba(79, 70, 229, 0.06)',
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid rgba(79, 70, 229, 0.15)',
+              fontSize: '0.72rem',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '6px'
+            }}>
+              <Info size={14} color="#6366f1" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>
+                <strong>Atajo:</strong> Puedes arrastrar cada tarjeta a una celda del horario o hacer clic en ella y luego tocar la casilla para fijarla.
+              </span>
+            </div>
+          </div>
+
+          {/* MATRIZ SEMANAL INTERACTIVA (LUNES A VIERNES) */}
+          <div className="glass-panel" style={{
+            padding: '20px',
+            overflowX: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border-subtle)', paddingBottom: '10px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0 }}>
+                  Matriz Semanal de Lecciones
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Ciclo Lectivo Costa Rica • Horarios Oficiales MEP
+                </span>
+              </div>
+              <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800 }}>
+                {mySchedules.length} Lecciones Semanales
+              </span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                textAlign: 'center',
+                fontSize: '0.8rem'
+              }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-surface)', borderBottom: '2px solid var(--border-subtle)' }}>
+                    <th style={{ padding: '8px 6px', width: '105px', textAlign: 'center' }}>Hora / Bloque</th>
+                    {WEEK_DAYS.map(day => (
+                      <th key={day.dayOfWeek} style={{ padding: '8px 6px', width: '18%' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>{day.label}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{day.short}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {MEP_TIME_SLOTS.map((slot) => {
+                    const isRecesoAfter = slot.slotIndex === 2 || slot.slotIndex === 4 || slot.slotIndex === 6;
+                    const recesoName = slot.slotIndex === 2 ? 'Receso (08:20 - 08:35)' : slot.slotIndex === 4 ? 'Receso (09:55 - 10:15)' : 'Almuerzo (11:35 - 12:15)';
+
+                    return (
+                      <React.Fragment key={slot.slotIndex}>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          {/* Columna de Hora */}
+                          <td style={{
+                            padding: '8px 6px',
                             background: 'var(--bg-surface)',
-                            borderLeft: `4px solid ${subject.color || '#10b981'}`
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span style={{
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                background: subject.color || '#10b981'
-                              }} />
-                              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.05rem' }}>
-                                {subject.name}
-                              </h3>
+                            borderRight: '1px solid var(--border-subtle)',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.75rem'
+                          }}>
+                            <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{slot.label}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                              {slot.startTime} - {slot.endTime}
                             </div>
-                            <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontWeight: 700 }}>
-                              {subjectSchedules.length} {subjectSchedules.length === 1 ? 'lección' : 'lecciones'}
-                            </span>
-                          </div>
+                          </td>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-                            {subjectSchedules.map(sch => {
-                              const group = groups.find(g => g.id === sch.groupId);
-                              const asg = assignments.find(a => a.groupId === sch.groupId && a.subjectId === sch.subjectId);
-                              const dayObj = DAYS.find(d => d.id === sch.dayOfWeek);
+                          {/* Columnas para cada día Lunes - Viernes */}
+                          {WEEK_DAYS.map(day => {
+                            const existingSlot = mySchedules.find(
+                              s => s.dayOfWeek === day.dayOfWeek && s.startTime === slot.startTime
+                            );
 
-                              return (
-                                <div
-                                  key={sch.id}
-                                  style={{
-                                    padding: '12px 14px',
-                                    borderRadius: '10px',
-                                    background: 'var(--bg-main)',
-                                    border: '1px solid var(--border-subtle)',
+                            const slotGroup = existingSlot ? groups.find(g => g.id === existingSlot.groupId) : null;
+                            const slotSubject = existingSlot ? subjects.find(s => s.id === existingSlot.subjectId) : null;
+                            const asg = existingSlot ? assignments.find(a => a.groupId === existingSlot.groupId && a.subjectId === existingSlot.subjectId) : null;
+
+                            // Comprobar si coincide con el filtro de resaltado
+                            const isGroupMatch = highlightGroupId === 'ALL' || existingSlot?.groupId === highlightGroupId;
+                            const isSubjectMatch = highlightSubjectId === 'ALL' || existingSlot?.subjectId === highlightSubjectId;
+                            const isHighlighted = isGroupMatch && isSubjectMatch;
+
+                            return (
+                              <td
+                                key={day.dayOfWeek}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const payload = draggedItem || (e.dataTransfer.getData('application/json') ? JSON.parse(e.dataTransfer.getData('application/json')) : null);
+                                  if (payload) {
+                                    handleAssignToSlot(
+                                      day.dayOfWeek,
+                                      slot.startTime,
+                                      slot.endTime,
+                                      payload.groupId,
+                                      payload.subjectId
+                                    );
+                                  }
+                                }}
+                                onClick={() => {
+                                  if (selectedItemForClick && !existingSlot) {
+                                    handleAssignToSlot(
+                                      day.dayOfWeek,
+                                      slot.startTime,
+                                      slot.endTime,
+                                      selectedItemForClick.groupId,
+                                      selectedItemForClick.subjectId
+                                    );
+                                  }
+                                }}
+                                style={{
+                                  padding: '5px',
+                                  borderRight: '1px solid var(--border-subtle)',
+                                  height: '62px',
+                                  verticalAlign: 'middle',
+                                  background: existingSlot
+                                    ? (isHighlighted ? 'var(--bg-main)' : 'rgba(0,0,0,0.05)')
+                                    : selectedItemForClick
+                                    ? 'rgba(79, 70, 229, 0.04)'
+                                    : 'transparent',
+                                  opacity: existingSlot && !isHighlighted ? 0.35 : 1,
+                                  cursor: selectedItemForClick && !existingSlot ? 'pointer' : 'default',
+                                  transition: 'background 0.15s ease, opacity 0.2s ease'
+                                }}
+                              >
+                                {existingSlot ? (
+                                  <div style={{
+                                    background: slotSubject?.color ? `${slotSubject.color}15` : 'rgba(79, 70, 229, 0.12)',
+                                    border: `1.5px solid ${slotSubject?.color || '#4f46e5'}`,
+                                    borderRadius: '8px',
+                                    padding: '5px 6px',
+                                    position: 'relative',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: '8px'
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                      <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800, fontSize: '0.75rem' }}>
-                                        Sección {group?.sectionCode}
-                                      </span>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
-                                        {dayObj?.name} • {sch.startTime} - {sch.endTime}
-                                      </div>
-                                    </div>
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '100%'
+                                  }}>
+                                    {/* Quitar lección */}
                                     <button
-                                      onClick={() => handleDelete(sch.id)}
-                                      className="btn btn-ghost btn-sm"
-                                      style={{ color: '#ef4444', padding: '2px' }}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSlot(existingSlot.id);
+                                      }}
+                                      className="no-print"
+                                      style={{
+                                        position: 'absolute',
+                                        top: '2px',
+                                        right: '2px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: '#ef4444',
+                                        padding: '2px',
+                                        opacity: 0.7
+                                      }}
+                                      title="Quitar lección"
                                     >
-                                      <Trash2 size={13} />
+                                      <Trash2 size={11} />
                                     </button>
-                                  </div>
 
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                                    {sch.classroom ? (
-                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        <MapPin size={11} style={{ display: 'inline', marginRight: '3px' }} />
-                                        {sch.classroom}
-                                      </span>
-                                    ) : <span />}
-
+                                    {/* Botón Evaluar Rápido */}
                                     {asg && (
                                       <button
-                                        onClick={() => {
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           onStartEvaluatingClass(asg.id);
                                           onClose();
                                         }}
-                                        className="btn btn-primary btn-sm"
-                                        style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                                        className="no-print"
+                                        style={{
+                                          position: 'absolute',
+                                          top: '2px',
+                                          left: '2px',
+                                          background: 'rgba(79, 70, 229, 0.9)',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: 'pointer',
+                                          color: 'white',
+                                          padding: '2px 4px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '2px',
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700
+                                        }}
+                                        title="Evaluar esta clase ahora"
                                       >
-                                        <Play size={11} /> Evaluar
+                                        <Play size={8} /> Eval
                                       </button>
                                     )}
+
+                                    <div style={{
+                                      fontWeight: 800,
+                                      fontSize: '0.8rem',
+                                      color: 'var(--text-main)',
+                                      lineHeight: 1.1,
+                                      marginTop: '6px'
+                                    }}>
+                                      {slotGroup?.groupName || `Secc. ${slotGroup?.sectionCode || '1'}`}
+                                    </div>
+
+                                    <div style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: slotSubject?.color || '#4f46e5',
+                                      marginTop: '2px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: '110px'
+                                    }}>
+                                      {slotSubject?.name}
+                                    </div>
+
+                                    {existingSlot.classroom && (
+                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                                        {existingSlot.classroom}
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </>
-          )}
+                                ) : (
+                                  <div style={{
+                                    border: '1px dashed var(--border-subtle)',
+                                    borderRadius: '6px',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.68rem'
+                                  }}>
+                                    {selectedItemForClick ? (
+                                      <span style={{ color: '#4f46e5', fontWeight: 600 }}>+ Asignar</span>
+                                    ) : (
+                                      <span style={{ opacity: 0.35 }}>—</span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* Recesos */}
+                        {isRecesoAfter && (
+                          <tr style={{ background: 'var(--bg-surface)' }}>
+                            <td
+                              colSpan={6}
+                              style={{
+                                padding: '3px',
+                                textAlign: 'center',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                color: 'var(--text-muted)',
+                                borderBottom: '1px solid var(--border-subtle)',
+                                letterSpacing: '0.5px'
+                              }}
+                            >
+                              ☕ {recesoName}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
         <div style={{
-          padding: '14px 24px',
+          padding: '12px 24px',
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           justifyContent: 'space-between',
@@ -976,7 +957,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           background: 'var(--bg-surface)'
         }}>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Mostrando <strong>{filteredSchedules.length}</strong> de <strong>{mySchedules.length}</strong> lecciones programadas
+            Total de <strong>{mySchedules.length}</strong> lecciones en tu horario semanal
           </div>
           <button onClick={onClose} className="btn btn-secondary">
             Cerrar
