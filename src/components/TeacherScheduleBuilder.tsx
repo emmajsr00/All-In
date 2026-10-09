@@ -12,7 +12,10 @@ import {
   GripVertical,
   Plus,
   Sparkles,
-  Info
+  Info,
+  Users,
+  User as UserIcon,
+  Filter
 } from 'lucide-react';
 import type { User, Group, Subject, TeacherAssignment, ScheduleItem } from '../types';
 import { db } from '../db';
@@ -61,65 +64,99 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
   institutionName,
   onDataChanged
 }) => {
+  // Modo general: Por Docente o Por Grupo / Sección
+  const [builderMode, setBuilderMode] = useState<'by-teacher' | 'by-group'>('by-teacher');
+
+  // Selecciones principales
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(teachers[0]?.id || '');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id || '');
+
+  // Sub-modo en paleta por docente: por materia o por sección
+  const [paletteMode, setPaletteMode] = useState<'by-subject' | 'by-group'>('by-subject');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
-  const [selectedSectionForClick, setSelectedSectionForClick] = useState<{
+  const [selectedPaletteGroupId, setSelectedPaletteGroupId] = useState<string>('');
+
+  // Item seleccionado para hacer clic y colocar
+  const [selectedItemForClick, setSelectedItemForClick] = useState<{
     groupId: string;
     subjectId: string;
+    teacherId?: string;
     groupCode: string;
     subjectName: string;
+    teacherName?: string;
   } | null>(null);
+
+  // Item arrastrado
   const [draggedItem, setDraggedItem] = useState<{
     groupId: string;
     subjectId: string;
+    teacherId?: string;
     groupCode: string;
     subjectName: string;
+    teacherName?: string;
   } | null>(null);
+
   const [classroomInput, setClassroomInput] = useState<string>('');
 
   const selectedTeacher = teachers.find(t => t.id === selectedTeacherId) || teachers[0];
+  const selectedGroup = groups.find(g => g.id === selectedGroupId) || groups[0];
 
-  // Asignaciones del profesor seleccionado
+  // ---------------------------------------------------------------------------
+  // CASO A: PROGRAMACIÓN POR DOCENTE
+  // ---------------------------------------------------------------------------
   const teacherAssignments = selectedTeacher
     ? assignments.filter(a => a.teacherId === selectedTeacher.id)
     : [];
 
-  // Materias únicas que imparte este profesor
-  const distinctSubjectIds = Array.from(new Set(teacherAssignments.map(a => a.subjectId)));
-  const distinctSubjects = subjects.filter(s => distinctSubjectIds.includes(s.id));
+  const teacherSubjectIds = Array.from(new Set(teacherAssignments.map(a => a.subjectId)));
+  const teacherDistinctSubjects = subjects.filter(s => teacherSubjectIds.includes(s.id));
 
-  // Determinar si es monomateria (ej. Secundaria / Colegio) o multimateria (ej. Primaria / Escuela)
-  const isSingleSubject = distinctSubjects.length <= 1;
-  const activeSubject = isSingleSubject
-    ? distinctSubjects[0]
-    : distinctSubjects.find(s => s.id === selectedSubjectId) || distinctSubjects[0];
+  const teacherGroupIds = Array.from(new Set(teacherAssignments.map(a => a.groupId)));
+  const teacherDistinctGroups = groups.filter(g => teacherGroupIds.includes(g.id));
 
-  // Secciones asignadas para la materia activa
-  const availableAssignments = activeSubject
-    ? teacherAssignments.filter(a => a.subjectId === activeSubject.id)
-    : teacherAssignments;
+  const activeTeacherSubject = teacherDistinctSubjects.find(s => s.id === selectedSubjectId) || teacherDistinctSubjects[0];
+  const activeTeacherPaletteGroup = teacherDistinctGroups.find(g => g.id === selectedPaletteGroupId) || teacherDistinctGroups[0];
 
-  // Horario del docente seleccionado
-  const currentTeacherSchedules = selectedTeacher
-    ? schedules.filter(s => s.teacherId === selectedTeacher.id)
+  // ---------------------------------------------------------------------------
+  // CASO B: PROGRAMACIÓN POR GRUPO / SECCIÓN
+  // ---------------------------------------------------------------------------
+  const groupAssignments = selectedGroup
+    ? assignments.filter(a => a.groupId === selectedGroup.id)
     : [];
 
-  // Manejar asignación a un bloque
+  // Lecciones actuales según el modo activo
+  const activeSchedules = builderMode === 'by-teacher'
+    ? (selectedTeacher ? schedules.filter(s => s.teacherId === selectedTeacher.id) : [])
+    : (selectedGroup ? schedules.filter(s => s.groupId === selectedGroup.id) : []);
+
+  // Asignar lección a un bloque
   const handleAssignToSlot = async (
     dayOfWeek: 1 | 2 | 3 | 4 | 5,
     startTime: string,
     endTime: string,
     groupId: string,
-    subjectId: string
+    subjectId: string,
+    slotTeacherId?: string
   ) => {
-    if (!selectedTeacher) return;
+    const finalTeacherId = slotTeacherId || selectedTeacher?.id;
+    if (!finalTeacherId) return;
 
-    // Si ya existe un bloque en ese horario para ese docente, se reemplaza
-    const existing = currentTeacherSchedules.find(
-      s => s.dayOfWeek === dayOfWeek && s.startTime === startTime
-    );
-    if (existing) {
-      await db.schedules.delete(existing.id);
+    if (builderMode === 'by-teacher') {
+      // Reemplazar lección del profesor a esa hora si existe
+      const existing = activeSchedules.find(
+        s => s.dayOfWeek === dayOfWeek && s.startTime === startTime
+      );
+      if (existing) {
+        await db.schedules.delete(existing.id);
+      }
+    } else {
+      // Reemplazar lección de la sección a esa hora si existe
+      const existing = activeSchedules.find(
+        s => s.dayOfWeek === dayOfWeek && s.startTime === startTime
+      );
+      if (existing) {
+        await db.schedules.delete(existing.id);
+      }
     }
 
     const grp = groups.find(g => g.id === groupId);
@@ -127,7 +164,7 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
 
     const newItem: ScheduleItem = {
       id: `sch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      teacherId: selectedTeacher.id,
+      teacherId: finalTeacherId,
       groupId,
       subjectId,
       dayOfWeek,
@@ -140,17 +177,18 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
     if (onDataChanged) onDataChanged();
   };
 
-  // Manejar eliminación de bloque
   const handleDeleteSlot = async (scheduleId: string) => {
     await db.schedules.delete(scheduleId);
     if (onDataChanged) onDataChanged();
   };
 
-  // Vaciar horario del profesor
   const handleClearAll = async () => {
-    if (!selectedTeacher) return;
-    if (window.confirm(`¿Estás seguro de vaciar todo el horario semanal para ${selectedTeacher.name}?`)) {
-      const toDelete = currentTeacherSchedules.map(s => s.id);
+    const title = builderMode === 'by-teacher'
+      ? `el horario del profesor ${selectedTeacher?.name}`
+      : `el horario de la Sección ${selectedGroup?.sectionCode}`;
+
+    if (window.confirm(`¿Estás seguro de vaciar todo ${title}?`)) {
+      const toDelete = activeSchedules.map(s => s.id);
       for (const id of toDelete) {
         await db.schedules.delete(id);
       }
@@ -160,7 +198,7 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top Header & Selector de Docente */}
+      {/* Encabezado y Selector de Modo */}
       <div className="glass-panel no-print" style={{
         padding: '20px 24px',
         display: 'flex',
@@ -186,38 +224,100 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
             <Clock size={22} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-              Creador de Horarios por Docente
-            </h2>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-              Arrastra o selecciona las secciones para ubicarlas en la matriz semanal de lecciones.
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                Creador de Horarios
+              </h2>
+              {/* Pill selector de Modo: Por Docente vs Por Grupo */}
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-main)',
+                padding: '3px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                gap: '2px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuilderMode('by-teacher');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${builderMode === 'by-teacher' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <UserIcon size={13} />
+                  <span>Por Docente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuilderMode('by-group');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${builderMode === 'by-group' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Users size={13} />
+                  <span>Por Grupo / Sección</span>
+                </button>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+              {builderMode === 'by-teacher'
+                ? 'Organiza y visualiza la carga horaria semanal por profesor.'
+                : 'Crea o visualiza el horario semanal completo de cada grupo o sección.'}
             </p>
           </div>
         </div>
 
-        {/* Selector de Profesor */}
+        {/* Selector de Elemento Activo según el modo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              Docente a Programar:
-            </label>
-            <select
-              value={selectedTeacher?.id || ''}
-              onChange={(e) => {
-                setSelectedTeacherId(e.target.value);
-                setSelectedSectionForClick(null);
-                setSelectedSubjectId('');
-              }}
-              className="input-field"
-              style={{ padding: '8px 14px', minWidth: '240px', fontWeight: 600 }}
-            >
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name} {t.title ? `(${t.title})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          {builderMode === 'by-teacher' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                Docente:
+              </label>
+              <select
+                value={selectedTeacher?.id || ''}
+                onChange={(e) => {
+                  setSelectedTeacherId(e.target.value);
+                  setSelectedItemForClick(null);
+                  setSelectedSubjectId('');
+                  setSelectedPaletteGroupId('');
+                }}
+                className="input-field"
+                style={{ padding: '8px 14px', minWidth: '240px', fontWeight: 600 }}
+              >
+                {teachers.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.title ? `(${t.title})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                Grupo o Sección:
+              </label>
+              <select
+                value={selectedGroup?.id || ''}
+                onChange={(e) => {
+                  setSelectedGroupId(e.target.value);
+                  setSelectedItemForClick(null);
+                }}
+                className="input-field"
+                style={{ padding: '8px 14px', minWidth: '240px', fontWeight: 600 }}
+              >
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>
+                    Sección {g.sectionCode} {g.groupName ? `(${g.groupName})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -225,12 +325,12 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
               onClick={() => window.print()}
               className="btn btn-secondary btn-sm"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              title="Imprimir horario o guardar en PDF"
+              title="Imprimir horario"
             >
               <Printer size={15} />
-              <span>Imprimir Horario</span>
+              <span>Imprimir</span>
             </button>
-            {currentTeacherSchedules.length > 0 && (
+            {activeSchedules.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearAll}
@@ -246,10 +346,10 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
         </div>
       </div>
 
-      {/* Panel Principal: Selector de Materia / Secciones + Matriz Semanal */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 320px) 1fr', gap: '20px' }}>
+      {/* Grid Principal: Paleta de Asignaciones (Izquierda) + Matriz Semanal (Derecha) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(290px, 340px) 1fr', gap: '20px' }}>
         
-        {/* COLUMNA IZQUIERDA: PALETA DE SECCIONES ASIGNADAS */}
+        {/* COLUMNA IZQUIERDA: PALETA DE ASIGNACIONES */}
         <div className="glass-panel no-print" style={{
           padding: '20px',
           display: 'flex',
@@ -257,179 +357,402 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
           gap: '16px',
           height: 'fit-content'
         }}>
+          {/* Header de la paleta */}
           <div>
             <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Carga del Profesor
+              {builderMode === 'by-teacher' ? 'Carga del Docente' : 'Plan de Estudio del Grupo'}
             </div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '4px 0 0 0' }}>
-              {selectedTeacher?.name}
+              {builderMode === 'by-teacher' ? selectedTeacher?.name : `Sección ${selectedGroup?.sectionCode} ${selectedGroup?.groupName ? `(${selectedGroup.groupName})` : ''}`}
             </h3>
             <div style={{ fontSize: '0.8rem', color: '#4f46e5', fontWeight: 600, marginTop: '2px' }}>
-              {currentTeacherSchedules.length} lecciones programadas en la semana
+              {activeSchedules.length} lecciones programadas en la semana
             </div>
           </div>
 
-          {/* CASO: Docente Multimateria (Escuela / Primaria) vs Monomateria (Secundaria) */}
-          {!isSingleSubject ? (
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
-                1. Selecciona la Materia a impartir:
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {distinctSubjects.map(sub => {
-                  const isSubActive = activeSubject?.id === sub.id;
-                  const countForSub = teacherAssignments.filter(a => a.subjectId === sub.id).length;
-                  return (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedSubjectId(sub.id);
-                        setSelectedSectionForClick(null);
-                      }}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        border: `1px solid ${isSubActive ? sub.color || '#4f46e5' : 'var(--border-subtle)'}`,
-                        background: isSubActive ? 'var(--bg-surface)' : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        textAlign: 'left'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          background: sub.color || '#4f46e5'
-                        }}></span>
-                        <span style={{ fontWeight: isSubActive ? 800 : 600, fontSize: '0.85rem' }}>
-                          {sub.name}
-                        </span>
-                      </div>
-                      <span className="badge" style={{ fontSize: '0.72rem' }}>
-                        {countForSub} {countForSub === 1 ? 'grupo' : 'grupos'}
+          {/* MODO A: PALETA POR DOCENTE */}
+          {builderMode === 'by-teacher' && (
+            <>
+              {/* Toggle de Paleta: Por Materia vs Por Sección */}
+              <div style={{
+                display: 'flex',
+                background: 'var(--bg-main)',
+                padding: '3px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                gap: '2px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaletteMode('by-subject');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${paletteMode === 'by-subject' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '4px 8px' }}
+                >
+                  <BookOpen size={12} />
+                  <span>Por Materia</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaletteMode('by-group');
+                    setSelectedItemForClick(null);
+                  }}
+                  className={`btn btn-sm ${paletteMode === 'by-group' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '4px 8px' }}
+                >
+                  <Users size={12} />
+                  <span>Por Sección</span>
+                </button>
+              </div>
+
+              {/* Sub-caso 1: Por Materia */}
+              {paletteMode === 'by-subject' && (
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    1. Selecciona Materia:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                    {teacherDistinctSubjects.map(sub => {
+                      const isSubActive = activeTeacherSubject?.id === sub.id;
+                      const countForSub = teacherAssignments.filter(a => a.subjectId === sub.id).length;
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSubjectId(sub.id);
+                            setSelectedItemForClick(null);
+                          }}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: `1px solid ${isSubActive ? sub.color || '#4f46e5' : 'var(--border-subtle)'}`,
+                            background: isSubActive ? 'var(--bg-surface)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: sub.color || '#4f46e5' }} />
+                            <span style={{ fontWeight: isSubActive ? 800 : 600, fontSize: '0.82rem' }}>
+                              {sub.name}
+                            </span>
+                          </div>
+                          <span className="badge" style={{ fontSize: '0.7rem' }}>
+                            {countForSub} grupos
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                        2. Secciones a ubicar:
+                      </label>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Arrastra o clic
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              background: 'var(--bg-main)',
-              padding: '12px',
-              borderRadius: '10px',
-              border: '1px solid var(--border-subtle)'
-            }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Materia Asignada:</span>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: activeSubject?.color || '#4f46e5', marginTop: '2px' }}>
-                {activeSubject?.name || 'Sin materia asignada'}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Especialidad de materia única
-              </div>
-            </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {teacherAssignments
+                        .filter(a => a.subjectId === activeTeacherSubject?.id)
+                        .map(asg => {
+                          const grp = groups.find(g => g.id === asg.groupId);
+                          const sub = activeTeacherSubject;
+                          const groupCode = grp?.groupName || `Sección ${grp?.sectionCode || 'N/A'}`;
+                          const subjectName = sub?.name || 'Materia';
+                          const countScheduled = activeSchedules.filter(
+                            s => s.groupId === asg.groupId && s.subjectId === asg.subjectId
+                          ).length;
+
+                          const isSelected = selectedItemForClick?.groupId === asg.groupId &&
+                                             selectedItemForClick?.subjectId === asg.subjectId;
+
+                          const payload = {
+                            groupId: asg.groupId,
+                            subjectId: asg.subjectId,
+                            groupCode,
+                            subjectName
+                          };
+
+                          return (
+                            <div
+                              key={asg.id}
+                              draggable={true}
+                              onDragStart={(e) => {
+                                setDraggedItem(payload);
+                                e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                              }}
+                              onDragEnd={() => setDraggedItem(null)}
+                              onClick={() => {
+                                setSelectedItemForClick(isSelected ? null : payload);
+                              }}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '10px',
+                                border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
+                                background: isSelected ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
+                                cursor: 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <GripVertical size={14} color="var(--text-muted)" />
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>
+                                    {groupCode}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: sub?.color || '#4f46e5', fontWeight: 600 }}>
+                                    {subjectName}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="badge" style={{
+                                background: countScheduled > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
+                                color: countScheduled > 0 ? '#10b981' : 'var(--text-muted)',
+                                fontSize: '0.7rem',
+                                fontWeight: 700
+                              }}>
+                                {countScheduled} lec.
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-caso 2: Por Sección */}
+              {paletteMode === 'by-group' && (
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    1. Selecciona Sección:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                    {teacherDistinctGroups.map(grp => {
+                      const isGrpActive = activeTeacherPaletteGroup?.id === grp.id;
+                      const countForGrp = teacherAssignments.filter(a => a.groupId === grp.id).length;
+                      return (
+                        <button
+                          key={grp.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaletteGroupId(grp.id);
+                            setSelectedItemForClick(null);
+                          }}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: `1px solid ${isGrpActive ? '#4f46e5' : 'var(--border-subtle)'}`,
+                            background: isGrpActive ? 'var(--bg-surface)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <span style={{ fontWeight: isGrpActive ? 800 : 600, fontSize: '0.82rem' }}>
+                            Sección {grp.sectionCode} {grp.groupName ? `(${grp.groupName})` : ''}
+                          </span>
+                          <span className="badge" style={{ fontSize: '0.7rem' }}>
+                            {countForGrp} materias
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                        2. Materias a ubicar en esta sección:
+                      </label>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Arrastra o clic
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {teacherAssignments
+                        .filter(a => a.groupId === activeTeacherPaletteGroup?.id)
+                        .map(asg => {
+                          const sub = subjects.find(s => s.id === asg.subjectId);
+                          const grp = activeTeacherPaletteGroup;
+                          const groupCode = grp?.groupName || `Sección ${grp?.sectionCode || 'N/A'}`;
+                          const subjectName = sub?.name || 'Materia';
+                          const countScheduled = activeSchedules.filter(
+                            s => s.groupId === asg.groupId && s.subjectId === asg.subjectId
+                          ).length;
+
+                          const isSelected = selectedItemForClick?.groupId === asg.groupId &&
+                                             selectedItemForClick?.subjectId === asg.subjectId;
+
+                          const payload = {
+                            groupId: asg.groupId,
+                            subjectId: asg.subjectId,
+                            groupCode,
+                            subjectName
+                          };
+
+                          return (
+                            <div
+                              key={asg.id}
+                              draggable={true}
+                              onDragStart={(e) => {
+                                setDraggedItem(payload);
+                                e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                              }}
+                              onDragEnd={() => setDraggedItem(null)}
+                              onClick={() => {
+                                setSelectedItemForClick(isSelected ? null : payload);
+                              }}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '10px',
+                                border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
+                                background: isSelected ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
+                                cursor: 'grab',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <GripVertical size={14} color="var(--text-muted)" />
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: '0.85rem', color: sub?.color || '#4f46e5' }}>
+                                    {subjectName}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    {groupCode}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="badge" style={{
+                                background: countScheduled > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
+                                color: countScheduled > 0 ? '#10b981' : 'var(--text-muted)',
+                                fontSize: '0.7rem',
+                                fontWeight: 700
+                              }}>
+                                {countScheduled} lec.
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* SECCIONES DISPONIBLES PARA ARRASTRAR O CLIC */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>
-                {!isSingleSubject ? '2. Secciones Asignadas:' : 'Secciones a Programar:'}
-              </label>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                Arrastra a la hora
-              </span>
-            </div>
-
-            {availableAssignments.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg-main)', borderRadius: '10px' }}>
-                Este docente no tiene secciones asignadas en esta materia. Asigna secciones en la pestaña de Gestión Académica.
+          {/* MODO B: PALETA POR GRUPO / SECCIÓN */}
+          {builderMode === 'by-group' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                  Materias y Docentes Asignados:
+                </label>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  Arrastra al bloque
+                </span>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {availableAssignments.map(asg => {
-                  const grp = groups.find(g => g.id === asg.groupId);
-                  const sub = subjects.find(s => s.id === asg.subjectId) || activeSubject;
-                  const groupCode = grp?.groupName || `Sección ${grp?.sectionCode || 'N/A'}`;
-                  const subjectName = sub?.name || 'Materia';
 
-                  const countScheduled = currentTeacherSchedules.filter(
-                    s => s.groupId === asg.groupId && s.subjectId === asg.subjectId
-                  ).length;
+              {groupAssignments.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg-main)', borderRadius: '10px' }}>
+                  Esta sección no tiene docentes o materias asignadas aún en Gestión Académica.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
+                  {groupAssignments.map(asg => {
+                    const sub = subjects.find(s => s.id === asg.subjectId);
+                    const teacher = teachers.find(t => t.id === asg.teacherId);
+                    const groupCode = selectedGroup?.groupName || `Sección ${selectedGroup?.sectionCode}`;
+                    const subjectName = sub?.name || 'Materia';
+                    const teacherName = teacher?.name || 'Docente';
 
-                  const isSelected = selectedSectionForClick?.groupId === asg.groupId &&
-                                     selectedSectionForClick?.subjectId === asg.subjectId;
+                    const countScheduled = activeSchedules.filter(
+                      s => s.groupId === asg.groupId && s.subjectId === asg.subjectId && s.teacherId === asg.teacherId
+                    ).length;
 
-                  const itemPayload = {
-                    groupId: asg.groupId,
-                    subjectId: asg.subjectId,
-                    groupCode,
-                    subjectName
-                  };
+                    const isSelected = selectedItemForClick?.groupId === asg.groupId &&
+                                       selectedItemForClick?.subjectId === asg.subjectId &&
+                                       selectedItemForClick?.teacherId === asg.teacherId;
 
-                  return (
-                    <div
-                      key={asg.id}
-                      draggable={true}
-                      onDragStart={(e) => {
-                        setDraggedItem(itemPayload);
-                        e.dataTransfer.setData('application/json', JSON.stringify(itemPayload));
-                      }}
-                      onDragEnd={() => setDraggedItem(null)}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedSectionForClick(null);
-                        } else {
-                          setSelectedSectionForClick(itemPayload);
-                        }
-                      }}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '12px',
-                        border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
-                        background: isSelected ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
-                        cursor: 'grab',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? '0 0 0 2px rgba(79, 70, 229, 0.2)' : 'none'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <GripVertical size={16} color="var(--text-muted)" style={{ cursor: 'grab' }} />
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                            {groupCode}
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: sub?.color || '#4f46e5', fontWeight: 600 }}>
-                            {subjectName}
+                    const payload = {
+                      groupId: asg.groupId,
+                      subjectId: asg.subjectId,
+                      teacherId: asg.teacherId,
+                      groupCode,
+                      subjectName,
+                      teacherName
+                    };
+
+                    return (
+                      <div
+                        key={asg.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          setDraggedItem(payload);
+                          e.dataTransfer.setData('application/json', JSON.stringify(payload));
+                        }}
+                        onDragEnd={() => setDraggedItem(null)}
+                        onClick={() => {
+                          setSelectedItemForClick(isSelected ? null : payload);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border-subtle)'}`,
+                          background: isSelected ? 'rgba(79, 70, 229, 0.1)' : 'var(--bg-main)',
+                          cursor: 'grab',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <GripVertical size={14} color="var(--text-muted)" />
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: sub?.color || '#4f46e5' }}>
+                              {subjectName}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              Prof. {teacherName}
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      <div style={{ textAlign: 'right' }}>
                         <span className="badge" style={{
                           background: countScheduled > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
                           color: countScheduled > 0 ? '#10b981' : 'var(--text-muted)',
-                          fontSize: '0.72rem',
+                          fontSize: '0.7rem',
                           fontWeight: 700
                         }}>
                           {countScheduled} lec.
                         </span>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Aula opcional */}
           <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
@@ -460,7 +783,7 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
           }}>
             <Info size={16} color="#6366f1" style={{ flexShrink: 0, marginTop: '2px' }} />
             <span>
-              <strong>Tip:</strong> Puedes arrastrar cada sección con el mouse o hacer clic en ella y luego hacer clic en cualquier celda del horario para ubicarla.
+              <strong>Tip:</strong> Puedes arrastrar cada tarjeta a una hora o hacer clic en ella y luego tocar la casilla del horario para fijarla.
             </span>
           </div>
         </div>
@@ -480,12 +803,14 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                 {institutionName} • Ciclo Lectivo 2026
               </div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 900, margin: '2px 0 0 0' }}>
-                Horario Semanal: {selectedTeacher?.name}
+                {builderMode === 'by-teacher'
+                  ? `Horario Docente: ${selectedTeacher?.name}`
+                  : `Horario de Grupo: Sección ${selectedGroup?.sectionCode} ${selectedGroup?.groupName ? `(${selectedGroup.groupName})` : ''}`}
               </h2>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 800 }}>
-                {currentTeacherSchedules.length} Lecciones Semanales
+                {activeSchedules.length} Lecciones Semanales
               </span>
             </div>
           </div>
@@ -511,7 +836,6 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
               </thead>
               <tbody>
                 {MEP_TIME_SLOTS.map((slot) => {
-                  // Ver si hay receso después de este bloque
                   const isRecesoAfter = slot.slotIndex === 2 || slot.slotIndex === 4 || slot.slotIndex === 6;
                   const recesoName = slot.slotIndex === 2 ? 'Receso (08:20 - 08:35)' : slot.slotIndex === 4 ? 'Receso (09:55 - 10:15)' : 'Almuerzo (11:35 - 12:15)';
 
@@ -534,12 +858,13 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
 
                         {/* Celdas para cada día */}
                         {WEEK_DAYS.map(day => {
-                          const existingSlot = currentTeacherSchedules.find(
+                          const existingSlot = activeSchedules.find(
                             s => s.dayOfWeek === day.dayOfWeek && s.startTime === slot.startTime
                           );
 
                           const slotGroup = existingSlot ? groups.find(g => g.id === existingSlot.groupId) : null;
                           const slotSubject = existingSlot ? subjects.find(s => s.id === existingSlot.subjectId) : null;
+                          const slotTeacher = existingSlot ? teachers.find(t => t.id === existingSlot.teacherId) : null;
 
                           return (
                             <td
@@ -554,18 +879,20 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                                     slot.startTime,
                                     slot.endTime,
                                     payload.groupId,
-                                    payload.subjectId
+                                    payload.subjectId,
+                                    payload.teacherId
                                   );
                                 }
                               }}
                               onClick={() => {
-                                if (selectedSectionForClick && !existingSlot) {
+                                if (selectedItemForClick && !existingSlot) {
                                   handleAssignToSlot(
                                     day.dayOfWeek,
                                     slot.startTime,
                                     slot.endTime,
-                                    selectedSectionForClick.groupId,
-                                    selectedSectionForClick.subjectId
+                                    selectedItemForClick.groupId,
+                                    selectedItemForClick.subjectId,
+                                    selectedItemForClick.teacherId
                                   );
                                 }
                               }}
@@ -576,10 +903,10 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                                 verticalAlign: 'middle',
                                 background: existingSlot
                                   ? 'var(--bg-main)'
-                                  : selectedSectionForClick
+                                  : selectedItemForClick
                                   ? 'rgba(79, 70, 229, 0.03)'
                                   : 'transparent',
-                                cursor: selectedSectionForClick && !existingSlot ? 'pointer' : 'default',
+                                cursor: selectedItemForClick && !existingSlot ? 'pointer' : 'default',
                                 transition: 'background 0.15s ease'
                               }}
                             >
@@ -596,7 +923,6 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                                   justifyContent: 'center',
                                   height: '100%'
                                 }}>
-                                  {/* Botón Eliminar lección */}
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -620,27 +946,54 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                                     <Trash2 size={12} />
                                   </button>
 
-                                  <div style={{
-                                    fontWeight: 800,
-                                    fontSize: '0.82rem',
-                                    color: 'var(--text-main)',
-                                    lineHeight: 1.2
-                                  }}>
-                                    {slotGroup?.groupName || `Secc. ${slotGroup?.sectionCode || '1'}`}
-                                  </div>
-
-                                  <div style={{
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    color: slotSubject?.color || '#4f46e5',
-                                    marginTop: '2px',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    maxWidth: '120px'
-                                  }}>
-                                    {slotSubject?.name}
-                                  </div>
+                                  {/* Si es por docente, muestra el Grupo arriba; si es por grupo, muestra la Materia arriba */}
+                                  {builderMode === 'by-teacher' ? (
+                                    <>
+                                      <div style={{
+                                        fontWeight: 800,
+                                        fontSize: '0.82rem',
+                                        color: 'var(--text-main)',
+                                        lineHeight: 1.2
+                                      }}>
+                                        {slotGroup?.groupName || `Secc. ${slotGroup?.sectionCode || '1'}`}
+                                      </div>
+                                      <div style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        color: slotSubject?.color || '#4f46e5',
+                                        marginTop: '2px',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        maxWidth: '120px'
+                                      }}>
+                                        {slotSubject?.name}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div style={{
+                                        fontWeight: 800,
+                                        fontSize: '0.82rem',
+                                        color: slotSubject?.color || '#4f46e5',
+                                        lineHeight: 1.2
+                                      }}>
+                                        {slotSubject?.name}
+                                      </div>
+                                      <div style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: 600,
+                                        color: 'var(--text-muted)',
+                                        marginTop: '2px',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        maxWidth: '120px'
+                                      }}>
+                                        Prof. {slotTeacher?.name || 'Docente'}
+                                      </div>
+                                    </>
+                                  )}
 
                                   {existingSlot.classroom && (
                                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -659,7 +1012,7 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                                   color: 'var(--text-muted)',
                                   fontSize: '0.7rem'
                                 }}>
-                                  {selectedSectionForClick ? (
+                                  {selectedItemForClick ? (
                                     <span style={{ color: '#4f46e5', fontWeight: 600 }}>+ Asignar</span>
                                   ) : (
                                     <span style={{ opacity: 0.4 }}>—</span>
@@ -671,7 +1024,7 @@ export const TeacherScheduleBuilder: React.FC<TeacherScheduleBuilderProps> = ({
                         })}
                       </tr>
 
-                      {/* Fila Visual de Receso / Almuerzo */}
+                      {/* Receso / Almuerzo */}
                       {isRecesoAfter && (
                         <tr style={{ background: 'var(--bg-surface)' }}>
                           <td
