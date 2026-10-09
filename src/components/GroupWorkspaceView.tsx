@@ -441,6 +441,33 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
     onDataChanged();
   };
 
+  // Marcar masivamente la asistencia de todos los estudiantes en una sesión
+  const handleSetAllAttendance = async (
+    sessionId: string,
+    status: 'PRESENT' | 'UNEXCUSED_ABSENCE' | 'LESSON_ESCAPE' | 'TARDY' | 'EXCUSED_ABSENCE'
+  ) => {
+    const toPut: SessionStudentDetail[] = [];
+    for (const st of students) {
+      const existing = sessionDetails.find(d => d.sessionId === sessionId && d.studentId === st.id);
+      if (existing) {
+        toPut.push({
+          ...existing,
+          attendance: status
+        });
+      } else {
+        toPut.push({
+          id: `dtl-${sessionId}-${st.id}`,
+          sessionId,
+          studentId: st.id,
+          attendance: status,
+          cotidianoLevel: 3
+        });
+      }
+    }
+    await db.sessionDetails.bulkPut(toPut);
+    onDataChanged();
+  };
+
   // Agregar sub-ítem con puntos totales y valor porcentual
   const handleAddSubItem = async () => {
     if (!newItemTitle.trim()) return;
@@ -1869,15 +1896,116 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
 
                       {sessions.map(sess => (
                         <th key={sess.id} style={{
-                          padding: '8px 12px',
+                          padding: '8px 10px',
                           textAlign: 'center',
                           borderLeft: '1px solid var(--border-subtle)',
                           borderBottom: '2px solid var(--border-subtle)',
                           background: 'var(--bg-surface)',
-                          minWidth: '120px'
+                          minWidth: '170px'
                         }}>
-                          <div style={{ fontWeight: 800, color: '#4f46e5' }}>{sess.date}</div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sess.lessonsCount} Lecciones</div>
+                          <div style={{ fontWeight: 800, color: '#4f46e5', fontSize: '0.88rem' }}>{sess.date}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '6px' }}>{sess.lessonsCount} Lecciones</div>
+                          
+                          {/* Botones de acción masiva: Marcar a todos en esta lección */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '3px',
+                            background: 'var(--bg-card)',
+                            padding: '3px 4px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-subtle)'
+                          }}>
+                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '2px' }}>
+                              Todos:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllAttendance(sess.id, 'PRESENT')}
+                              style={{
+                                background: 'var(--badge-present-bg)',
+                                color: 'var(--badge-present-text)',
+                                border: '1px solid #16a34a',
+                                borderRadius: '4px',
+                                padding: '2px 5px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="Marcar a TODOS los estudiantes como Presentes"
+                            >
+                              P
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllAttendance(sess.id, 'UNEXCUSED_ABSENCE')}
+                              style={{
+                                background: 'var(--badge-absent-bg)',
+                                color: 'var(--badge-absent-text)',
+                                border: '1px solid #dc2626',
+                                borderRadius: '4px',
+                                padding: '2px 4px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="Marcar a TODOS como Ausencia Injustificada"
+                            >
+                              AI
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllAttendance(sess.id, 'TARDY')}
+                              style={{
+                                background: 'var(--badge-tardy-bg)',
+                                color: 'var(--badge-tardy-text)',
+                                border: '1px solid #4f46e5',
+                                borderRadius: '4px',
+                                padding: '2px 4px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="Marcar a TODOS como Tardía"
+                            >
+                              T
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllAttendance(sess.id, 'LESSON_ESCAPE')}
+                              style={{
+                                background: 'rgba(245, 158, 11, 0.15)',
+                                color: '#d97706',
+                                border: '1px solid #d97706',
+                                borderRadius: '4px',
+                                padding: '2px 4px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="Marcar a TODOS como Escape de Lección"
+                            >
+                              ESC
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllAttendance(sess.id, 'EXCUSED_ABSENCE')}
+                              style={{
+                                background: 'var(--badge-excused-bg)',
+                                color: 'var(--badge-excused-text)',
+                                border: '1px solid #10b981',
+                                borderRadius: '4px',
+                                padding: '2px 4px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="Marcar a TODOS como Ausencia Justificada"
+                            >
+                              AJ
+                            </button>
+                          </div>
                         </th>
                       ))}
                     </tr>
@@ -1999,34 +2127,58 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                             cotidianoLevel: 3
                           };
 
+                          const attOptions = [
+                            { key: 'PRESENT', label: 'P', title: 'Presente', bg: 'var(--badge-present-bg)', text: 'var(--badge-present-text)', border: '#16a34a' },
+                            { key: 'UNEXCUSED_ABSENCE', label: 'AI', title: 'Ausencia Injustificada', bg: 'var(--badge-absent-bg)', text: 'var(--badge-absent-text)', border: '#dc2626' },
+                            { key: 'TARDY', label: 'T', title: 'Tardía', bg: 'var(--badge-tardy-bg)', text: 'var(--badge-tardy-text)', border: '#4f46e5' },
+                            { key: 'LESSON_ESCAPE', label: 'ESC', title: 'Escape de Lección', bg: 'rgba(245, 158, 11, 0.2)', text: '#d97706', border: '#d97706' },
+                            { key: 'EXCUSED_ABSENCE', label: 'AJ', title: 'Ausencia Justificada', bg: 'var(--badge-excused-bg)', text: 'var(--badge-excused-text)', border: '#10b981' }
+                          ];
+
                           return (
                             <td key={sess.id} style={{
                               padding: '6px 8px',
                               textAlign: 'center',
                               borderLeft: '1px solid var(--border-subtle)',
-                              borderBottom: '1px solid var(--border-subtle)'
+                              borderBottom: '1px solid var(--border-subtle)',
+                              whiteSpace: 'nowrap'
                             }}>
-                              <select
-                                value={det.attendance}
-                                onFocus={() => setActiveGradingStudentId(item.studentId)}
-                                onChange={(e) => handleUpdateSessionDetail(sess.id, item.studentId, { attendance: e.target.value as any })}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  border: '1px solid var(--border-subtle)',
-                                  background: det.attendance === 'PRESENT' ? 'var(--badge-present-bg)' : det.attendance === 'UNEXCUSED_ABSENCE' ? 'var(--badge-absent-bg)' : det.attendance === 'TARDY' ? 'var(--badge-tardy-bg)' : 'var(--badge-excused-bg)',
-                                  color: det.attendance === 'PRESENT' ? 'var(--badge-present-text)' : det.attendance === 'UNEXCUSED_ABSENCE' ? 'var(--badge-absent-text)' : det.attendance === 'TARDY' ? 'var(--badge-tardy-text)' : 'var(--badge-excused-text)',
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <option value="PRESENT">Presente</option>
-                                <option value="UNEXCUSED_ABSENCE">Injustificada</option>
-                                <option value="LESSON_ESCAPE">Escape</option>
-                                <option value="TARDY">Tardía</option>
-                                <option value="EXCUSED_ABSENCE">Justificada</option>
-                              </select>
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                background: 'var(--bg-main)',
+                                padding: '3px 4px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-subtle)'
+                              }}>
+                                {attOptions.map(opt => {
+                                  const isSelected = det.attendance === opt.key;
+                                  return (
+                                    <button
+                                      key={opt.key}
+                                      type="button"
+                                      onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                      onClick={() => handleUpdateSessionDetail(sess.id, item.studentId, { attendance: opt.key as any })}
+                                      style={{
+                                        background: isSelected ? opt.bg : 'transparent',
+                                        color: isSelected ? opt.text : 'var(--text-muted)',
+                                        border: isSelected ? `1.5px solid ${opt.border}` : '1px solid transparent',
+                                        borderRadius: '5px',
+                                        padding: '3px 6px',
+                                        fontSize: '0.73rem',
+                                        fontWeight: isSelected ? 900 : 600,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                        boxShadow: isSelected ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'
+                                      }}
+                                      title={opt.title}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </td>
                           );
                         })}

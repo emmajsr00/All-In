@@ -28,7 +28,8 @@ import {
   Search,
   Filter,
   UploadCloud,
-  FileText
+  FileText,
+  Building2
 } from 'lucide-react';
 import type {
   User,
@@ -44,6 +45,7 @@ import { db } from '../db';
 import { AddStudentModal } from './AddStudentModal';
 import { ImportStudentsModal } from './ImportStudentsModal';
 import { ConfirmModal } from './ConfirmModal';
+import { SectionReportModal } from './SectionReportModal';
 
 interface DashboardProps {
   currentUser: User;
@@ -144,6 +146,63 @@ export const Dashboard: React.FC<DashboardProps> = ({
     message: '',
     onConfirm: () => {}
   });
+
+  // Modal de Reportes / Boletines Oficiales de Sección
+  const [reportSectionGroup, setReportSectionGroup] = useState<Group | null>(null);
+
+  // Transición y Vinculación a Institución Formal
+  const [isLinkToInstOpen, setIsLinkToInstOpen] = useState(false);
+  const [targetInstId, setTargetInstId] = useState('');
+  const [availableInstitutions, setAvailableInstitutions] = useState<Institution[]>([]);
+  const [linkInstSuccess, setLinkInstSuccess] = useState<string | null>(null);
+  const [linkInstError, setLinkInstError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isIndependent) {
+      db.institutions.toArray().then(insts => {
+        const formal = insts.filter(i => i.id !== currentInstitution.id && i.type !== 'INDEPENDENT');
+        setAvailableInstitutions(formal);
+        if (formal.length > 0) {
+          setTargetInstId(formal[0].id);
+        }
+      });
+    }
+  }, [isIndependent, currentInstitution.id]);
+
+  const handleLinkToInstitution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLinkInstError(null);
+    if (!targetInstId) {
+      setLinkInstError('Selecciona una institución de destino.');
+      return;
+    }
+    const target = availableInstitutions.find(i => i.id === targetInstId);
+    if (!target) {
+      setLinkInstError('Institución no encontrada.');
+      return;
+    }
+
+    try {
+      for (const g of allTeacherSections) {
+        await db.groups.update(g.id, { institutionId: target.id });
+      }
+      const mySubjects = subjects.filter(s => s.teacherId === currentUser.id);
+      for (const s of mySubjects) {
+        await db.subjects.update(s.id, { institutionId: target.id });
+      }
+      await db.users.update(currentUser.id, { institutionId: target.id });
+
+      setLinkInstSuccess(`¡Secciones y materias vinculadas con éxito a "${target.name}"!`);
+      setTimeout(() => {
+        setIsLinkToInstOpen(false);
+        if (onDataChanged) onDataChanged();
+        window.location.reload();
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+      setLinkInstError('Error al transferir las secciones.');
+    }
+  };
 
   // Smart Schedule detector: Find if there is an active class right now
   const [currentActiveSchedule, setCurrentActiveSchedule] = useState<ScheduleItem | null>(null);
@@ -725,13 +784,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {userAssignments.length} Asignaturas en total
               </span>
               {isIndependent && (
-                <button
-                  onClick={() => { setGroupError(null); setIsAddGroupOpen(true); }}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontWeight: 600 }}
-                >
-                  <FolderPlus size={15} color="#4f46e5" /> + Nueva Sección
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => { setGroupError(null); setIsAddGroupOpen(true); }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontWeight: 600 }}
+                  >
+                    <FolderPlus size={15} color="#4f46e5" /> + Nueva Sección
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLinkInstError(null);
+                      setLinkInstSuccess(null);
+                      setIsLinkToInstOpen(true);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontWeight: 600, color: '#6366f1' }}
+                    title="Vincular o transferir tus secciones a una institución registrada"
+                  >
+                    <Building2 size={15} color="#6366f1" /> Vincular a Institución
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -940,6 +1013,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                       {/* Botones de acción rápida estilo Director */}
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportSectionGroup(grp);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                          title="Generar boletines oficiales y reporte consolidado de esta sección"
+                        >
+                          <FileText size={14} color="#6366f1" />
+                          <span>Boletines</span>
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2404,6 +2490,192 @@ export const Dashboard: React.FC<DashboardProps> = ({
             if (onDataChanged) onDataChanged();
           }}
         />
+      )}
+
+      {/* Modal de Reportes Oficiales / Boletines de Sección */}
+      {reportSectionGroup && (
+        <SectionReportModal
+          reportGroup={reportSectionGroup}
+          institutionName={currentInstitution?.name || 'Docente Independiente'}
+          currentUser={currentUser}
+          students={students}
+          subjects={subjects}
+          assignments={assignments}
+          evaluationConfigs={evaluationConfigs}
+          onClose={() => setReportSectionGroup(null)}
+        />
+      )}
+
+      {/* Modal: Vincular Secciones a Institución Formal (Transición) */}
+      {isLinkToInstOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '560px',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-main)'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--bg-surface)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6366f1'
+                }}>
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
+                    Vincular a Institución Educativa
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Transición de Espacio Independiente a Institución Oficial
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLinkToInstOpen(false)}
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '6px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleLinkToInstitution} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{
+                background: 'rgba(99, 102, 241, 0.08)',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                fontSize: '0.85rem',
+                lineHeight: '1.5'
+              }}>
+                <strong>¿En qué consiste?</strong> Tus <strong>{allTeacherSections.length} secciones</strong>, materias registradas, estudiantes, calificaciones y asistencias se integrarán al colegio seleccionado. Podrás seguir impartiéndolas de manera oficial bajo supervisión de la dirección institucional.
+              </div>
+
+              {linkInstSuccess && (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <CheckCircle2 size={18} /> {linkInstSuccess}
+                </div>
+              )}
+
+              {linkInstError && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontSize: '0.88rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <AlertCircle size={18} /> {linkInstError}
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '8px' }}>
+                  Selecciona la Institución Oficial:
+                </label>
+                {availableInstitutions.length === 0 ? (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '12px', background: 'var(--bg-surface)', borderRadius: '8px' }}>
+                    No hay otras instituciones oficiales disponibles en este momento.
+                  </div>
+                ) : (
+                  <select
+                    value={targetInstId}
+                    onChange={(e) => setTargetInstId(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', fontSize: '0.9rem' }}
+                  >
+                    {availableInstitutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name} ({inst.code})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div style={{
+                background: 'var(--bg-surface)',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div>• Se transferirán: <strong>{allTeacherSections.length} secciones</strong></div>
+                <div>• Total de asignaturas vinculadas: <strong>{userAssignments.length}</strong></div>
+                <div>• Todos los registros históricos se conservarán íntegros.</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsLinkToInstOpen(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={availableInstitutions.length === 0 || !!linkInstSuccess}
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Building2 size={16} /> Confirmar Vinculación
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Modal de confirmación genérico */}
