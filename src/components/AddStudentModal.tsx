@@ -61,8 +61,8 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
     }
   };
 
-  // Consultar API de Hacienda de Costa Rica
-  const handleQueryHacienda = async (overrideCedula?: string) => {
+  // Consultar identificación oficial de Costa Rica
+  const handleQueryCedula = async (overrideCedula?: string) => {
     const raw = overrideCedula || idNumber;
     const cleanCedula = raw.replace(/[^0-9]/g, '');
 
@@ -72,7 +72,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
     if (cleanCedula.length < 9) {
       setApiMessage({
         type: 'warning',
-        text: 'La identificación costarricense debe tener al menos 9 dígitos para consultar en Hacienda.'
+        text: 'La identificación costarricense debe tener al menos 9 dígitos.'
       });
       return;
     }
@@ -107,24 +107,24 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
 
           setApiMessage({
             type: 'success',
-            text: `¡Datos encontrados en Hacienda!: ${rawFullName}`
+            text: `¡Identificación encontrada!: ${rawFullName}`
           });
         } else {
           setApiMessage({
             type: 'warning',
-            text: 'Respuesta vacía de Hacienda. Puedes digitar el nombre manualmente.'
+            text: 'Respuesta vacía. Puedes digitar el nombre manualmente.'
           });
         }
       } else {
         setApiMessage({
           type: 'warning',
-          text: 'Identificación no registrada en el padrón/tributario. Puedes completar los datos manualmente.'
+          text: 'Identificación no encontrada en el registro. Puedes completar los datos manualmente.'
         });
       }
     } catch {
       setApiMessage({
         type: 'warning',
-        text: 'No se pudo conectar con la API de Hacienda (modo sin internet). Puedes digitar los datos manualmente.'
+        text: 'Modo sin internet. Puedes digitar los datos manualmente.'
       });
     } finally {
       setIsLoadingApi(false);
@@ -233,7 +233,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Agregar Nuevo Estudiante</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Consulta oficial de Hacienda de Costa Rica y registro manual
+                Consulta oficial de identificación y registro de estudiantes
               </p>
             </div>
           </div>
@@ -243,7 +243,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Campo Cédula con Botón de Búsqueda de Hacienda */}
+          {/* Campo Cédula con Botón de Búsqueda */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>
@@ -268,10 +268,10 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
                   const val = e.target.value;
                   setIdNumber(val);
                   checkDuplicateCedula(val);
-                  // Si escribe 9 dígitos puros y no es extranjero, sugerir o auto-buscar
+                  // Si escribe 9 dígitos puros y no es extranjero, consultar automáticamente
                   const clean = val.replace(/[^0-9]/g, '');
                   if (clean.length === 9 && !isForeigner && !firstName) {
-                    handleQueryHacienda(clean);
+                    handleQueryCedula(clean);
                   }
                 }}
                 onBlur={() => checkDuplicateCedula(idNumber)}
@@ -289,22 +289,16 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
               />
               <button
                 type="button"
-                onClick={() => handleQueryHacienda()}
+                onClick={() => handleQueryCedula()}
                 disabled={isLoadingApi || !idNumber.trim() || !!duplicateWarning}
                 className="btn btn-primary"
-                style={{ padding: '0 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Consultar nombre y apellidos en la API de Hacienda"
+                style={{ padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Consultar identificación"
               >
                 {isLoadingApi ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Buscando...</span>
-                  </>
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <>
-                    <Search size={16} />
-                    <span>Buscar en Hacienda</span>
-                  </>
+                  <Search size={16} />
                 )}
               </button>
             </div>
@@ -330,7 +324,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
             )}
 
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-              Tip: Al digitar los 9 dígitos se consulta automáticamente a la API oficial de Hacienda.
+              Tip: Al digitar los 9 dígitos se consulta automáticamente la identificación.
             </span>
           </div>
 

@@ -8,10 +8,16 @@ export interface Institution {
   circuit?: string;
   regionalDirection?: string;
   logoUrl?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
   createdAt: string;
 }
 
 export type UserRole = 'DEVELOPER' | 'SUPERADMIN' | 'DIRECTOR' | 'ADMIN' | 'TEACHER';
+
+export type MembershipStatus = 'ACTIVE' | 'TRIAL' | 'EXPIRED' | 'INACTIVE';
+export type MembershipPlan = 'MONTHLY' | 'ANNUAL' | 'LIFETIME' | 'FREE';
 
 export interface User {
   id: string;
@@ -23,6 +29,12 @@ export interface User {
   institutionIds?: string[]; // Instituciones donde labora el docente
   title?: string;
   avatarUrl?: string;
+  idNumber?: string; // Cédula o número de identificación
+  phone?: string;
+  // Gestión de Membresías y Licencias
+  membershipStatus?: MembershipStatus;
+  membershipPlan?: MembershipPlan;
+  membershipExpiresAt?: string; // YYYY-MM-DD
 }
 
 export interface Group {

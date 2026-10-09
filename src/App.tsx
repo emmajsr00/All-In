@@ -178,7 +178,11 @@ export const App: React.FC = () => {
     const grp = groups.find(g => g.id === a.groupId);
     return grp?.institutionId === currentInstitution?.id;
   });
-  const institutionTeachers = allUsers.filter(u => u.institutionId === currentInstitution?.id && u.role === 'TEACHER');
+
+  const institutionTeachers = allUsers.filter(u => 
+    (u.institutionId === currentInstitution?.id || (u.institutionIds && u.institutionIds.includes(currentInstitution?.id || ''))) && 
+    u.role === 'TEACHER'
+  );
 
   const handleSaveRubricsConfig = async (updatedConfig: EvaluationConfig) => {
     await db.evaluationConfigs.put(updatedConfig);

@@ -14,10 +14,20 @@ import {
   X,
   Mail,
   Lock,
-  Briefcase
+  Briefcase,
+  Search,
+  Trash2,
+  Edit3,
+  Calendar,
+  Loader2,
+  Phone,
+  Clock,
+  Layers,
+  Filter
 } from 'lucide-react';
-import type { Institution, User, Group, Student, UserRole, InstitutionType } from '../types';
+import type { Institution, User, Group, Student, UserRole, InstitutionType, MembershipPlan, MembershipStatus } from '../types';
 import { db } from '../db';
+import { queryCostaRicaId } from '../utils/crIdentification';
 
 interface DeveloperViewProps {
   allInstitutions: Institution[];
@@ -48,6 +58,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
   const [instType, setInstType] = useState<InstitutionType>('COLLEGE');
   const [instCircuit, setInstCircuit] = useState('');
   const [instRegional, setInstRegional] = useState('');
+  const [instLogoUrl, setInstLogoUrl] = useState('');
 
   // Formulario Nuevo Usuario
   const [userName, setUserName] = useState('');
@@ -56,7 +67,28 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
   const [userRole, setUserRole] = useState<UserRole>('DIRECTOR');
   const [userInstitutionId, setUserInstitutionId] = useState<string>(allInstitutions[0]?.id || '');
   const [userTitle, setUserTitle] = useState('');
+  const [userIdNumber, setUserIdNumber] = useState('');
+  const [userPhone, setUserPhone] = useState('');
+  const [isQueryingAddCedula, setIsQueryingAddCedula] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
+
+  // Filtros de Usuarios en Desarrollador
+  const [selectedInstFilter, setSelectedInstFilter] = useState<string>('ALL'); // 'ALL' | 'INDEPENDENT' | institutionId
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+
+  // Modal Gestión de Membresías
+  const [membershipModalUser, setMembershipModalUser] = useState<User | null>(null);
+  const [mPlan, setMPlan] = useState<MembershipPlan>('ANNUAL');
+  const [mStatus, setMStatus] = useState<MembershipStatus>('ACTIVE');
+  const [mExpiresAt, setMExpiresAt] = useState<string>('');
+
+  // Modal Edición de Usuario
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isQueryingEditCedula, setIsQueryingEditCedula] = useState(false);
+
+  // Modal Edición de Institución
+  const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
 
   const handleCreateInstitution = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +99,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
       name: instName.trim(),
       code: instCode.trim(),
       type: instType,
+      logoUrl: instLogoUrl.trim() || undefined,
       circuit: instCircuit.trim() || undefined,
       regionalDirection: instRegional.trim() || undefined,
       createdAt: new Date().toISOString()
@@ -76,9 +109,52 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
     setIsAddInstitutionOpen(false);
     setInstName('');
     setInstCode('');
+    setInstLogoUrl('');
     setInstCircuit('');
     setInstRegional('');
     onDataChanged();
+  };
+
+  const handleUpdateInstitution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInstitution || !editingInstitution.name.trim() || !editingInstitution.code.trim()) return;
+
+    await db.institutions.update(editingInstitution.id, {
+      name: editingInstitution.name.trim(),
+      code: editingInstitution.code.trim(),
+      type: editingInstitution.type,
+      logoUrl: editingInstitution.logoUrl?.trim() || undefined,
+      circuit: editingInstitution.circuit?.trim() || undefined,
+      regionalDirection: editingInstitution.regionalDirection?.trim() || undefined,
+      phone: editingInstitution.phone?.trim() || undefined,
+      email: editingInstitution.email?.trim() || undefined,
+      address: editingInstitution.address?.trim() || undefined
+    });
+
+    setEditingInstitution(null);
+    onDataChanged();
+  };
+
+  const handleQueryCedulaForAdd = async (cedula: string) => {
+    const clean = cedula.replace(/[^0-9]/g, '');
+    if (clean.length < 9) return;
+    setIsQueryingAddCedula(true);
+    const res = await queryCostaRicaId(clean);
+    setIsQueryingAddCedula(false);
+    if (res.success && res.fullName) {
+      setUserName(res.fullName);
+    }
+  };
+
+  const handleQueryCedulaForEdit = async (cedula: string) => {
+    const clean = cedula.replace(/[^0-9]/g, '');
+    if (clean.length < 9 || !editingUser) return;
+    setIsQueryingEditCedula(true);
+    const res = await queryCostaRicaId(clean);
+    setIsQueryingEditCedula(false);
+    if (res.success && res.fullName) {
+      setEditingUser({ ...editingUser, name: res.fullName });
+    }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -91,7 +167,6 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
       return;
     }
 
-    // Verificar si el correo ya existe
     const exists = allUsers.some(u => u.email.toLowerCase() === cleanEmail);
     if (exists) {
       setUserError('Ya existe un usuario con este correo electrónico.');
@@ -105,7 +180,12 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
       password: userPassword.trim() || '123',
       role: userRole,
       institutionId: userInstitutionId,
-      title: userTitle.trim() || undefined
+      title: userTitle.trim() || undefined,
+      idNumber: userIdNumber.trim() || undefined,
+      phone: userPhone.trim() || undefined,
+      membershipStatus: 'ACTIVE',
+      membershipPlan: 'ANNUAL',
+      membershipExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     };
 
     await db.users.add(newUser);
@@ -114,12 +194,109 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
     setUserEmail('');
     setUserPassword('123');
     setUserTitle('');
+    setUserIdNumber('');
+    setUserPhone('');
     onDataChanged();
   };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const cleanEmail = editingUser.email.trim().toLowerCase();
+    if (!editingUser.name.trim() || !cleanEmail) {
+      alert('Nombre y correo son obligatorios.');
+      return;
+    }
+
+    const exists = allUsers.some(u => u.id !== editingUser.id && u.email.toLowerCase() === cleanEmail);
+    if (exists) {
+      alert('Ya existe otro usuario con este correo electrónico.');
+      return;
+    }
+
+    await db.users.update(editingUser.id, {
+      name: editingUser.name.trim(),
+      email: cleanEmail,
+      role: editingUser.role,
+      institutionId: editingUser.institutionId,
+      title: editingUser.title?.trim() || undefined,
+      password: editingUser.password || '123',
+      idNumber: editingUser.idNumber?.trim() || undefined,
+      phone: editingUser.phone?.trim() || undefined
+    });
+
+    setEditingUser(null);
+    onDataChanged();
+  };
+
+  const handleDeleteUser = async (userToDelete: User) => {
+    if (confirm(`¿Estás seguro de que deseas eliminar permanentemente al usuario ${userToDelete.name} (${userToDelete.email})?`)) {
+      await db.users.delete(userToDelete.id);
+      onDataChanged();
+    }
+  };
+
+  const handleOpenMembershipModal = (u: User) => {
+    setMembershipModalUser(u);
+    setMPlan(u.membershipPlan || 'ANNUAL');
+    setMStatus(u.membershipStatus || 'ACTIVE');
+    setMExpiresAt(u.membershipExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  };
+
+  const handleSaveMembership = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!membershipModalUser) return;
+
+    await db.users.update(membershipModalUser.id, {
+      membershipPlan: mPlan,
+      membershipStatus: mStatus,
+      membershipExpiresAt: mPlan === 'LIFETIME' ? undefined : (mExpiresAt || undefined)
+    });
+
+    setMembershipModalUser(null);
+    onDataChanged();
+  };
+
+  const handleSetQuickDuration = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    setMExpiresAt(d.toISOString().split('T')[0]);
+  };
+
+  // Filtrado reactivo de usuarios
+  const filteredUsers = allUsers.filter(u => {
+    // Filtro por Institución o Independiente
+    if (selectedInstFilter === 'INDEPENDENT') {
+      const isIndep = u.institutionId === 'inst-indep-01' || (!u.institutionId && u.role === 'TEACHER');
+      if (!isIndep) return false;
+    } else if (selectedInstFilter !== 'ALL') {
+      const matchInst = u.institutionId === selectedInstFilter || (u.institutionIds && u.institutionIds.includes(selectedInstFilter));
+      if (!matchInst) return false;
+    }
+
+    // Filtro por Rol
+    if (selectedRoleFilter !== 'ALL' && u.role !== selectedRoleFilter) {
+      return false;
+    }
+
+    // Buscador
+    if (userSearchQuery.trim()) {
+      const q = userSearchQuery.toLowerCase().trim();
+      const nameMatch = u.name.toLowerCase().includes(q);
+      const emailMatch = u.email.toLowerCase().includes(q);
+      const idMatch = u.idNumber ? u.idNumber.toLowerCase().includes(q) : false;
+      const titleMatch = u.title ? u.title.toLowerCase().includes(q) : false;
+      return nameMatch || emailMatch || idMatch || titleMatch;
+    }
+
+    return true;
+  });
 
   const directorCount = allUsers.filter(u => u.role === 'DIRECTOR').length;
   const teacherCount = allUsers.filter(u => u.role === 'TEACHER').length;
   const adminCount = allUsers.filter(u => u.role === 'ADMIN').length;
+  const indepCount = allUsers.filter(u => u.institutionId === 'inst-indep-01' || (!u.institutionId && u.role === 'TEACHER')).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -145,76 +322,30 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
               <span>Panel Maestro • Modo Desarrollador ALL-IN</span>
             </div>
             <h1 style={{ fontSize: '1.65rem', fontWeight: 900, margin: '2px 0 6px 0', color: 'var(--text-main)' }}>
-              Centro de Control Global
+              Centro de Control Global y Membresías
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, maxWidth: '650px' }}>
-              Desde este perfil tienes visibilidad y administración completa de todas las instituciones, directores, docentes y grupos creados en la plataforma.
+              Administra instituciones educativas, profesores independientes, licenciamiento de membresías y acceso global.
             </p>
           </div>
 
-          {/* Botones de Acción Global */}
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setIsAddInstitutionOpen(true)}
-              className="btn btn-secondary"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 16px',
-                borderRadius: '10px',
-                fontWeight: 700
-              }}
-            >
-              <Building2 size={16} />
-              <span>+ Nueva Institución</span>
-            </button>
-
-            <button
-              onClick={() => setIsAddUserOpen(true)}
-              className="btn btn-primary"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 16px',
-                borderRadius: '10px',
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
-              }}
-            >
-              <UserPlus size={16} />
-              <span>+ Crear Usuario</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Métricas Globales */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-          marginTop: '22px'
-        }}>
-          <div style={{ background: 'var(--bg-card)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Instituciones</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#7c3aed' }}>{allInstitutions.length}</div>
-          </div>
-          <div style={{ background: 'var(--bg-card)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Directores</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#4f46e5' }}>{directorCount}</div>
-          </div>
-          <div style={{ background: 'var(--bg-card)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Docentes</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981' }}>{teacherCount}</div>
-          </div>
-          <div style={{ background: 'var(--bg-card)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Secciones / Grupos</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#06b6d4' }}>{groups.length}</div>
-          </div>
-          <div style={{ background: 'var(--bg-card)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Estudiantes Totales</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b' }}>{students.length}</div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ background: 'var(--bg-card)', padding: '8px 14px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#7c3aed' }}>{allInstitutions.length}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Instituciones</div>
+            </div>
+            <div style={{ background: 'var(--bg-card)', padding: '8px 14px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>{indepCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Independientes</div>
+            </div>
+            <div style={{ background: 'var(--bg-card)', padding: '8px 14px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4f46e5' }}>{directorCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Directores</div>
+            </div>
+            <div style={{ background: 'var(--bg-card)', padding: '8px 14px', borderRadius: '12px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#06b6d4' }}>{teacherCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Docentes</div>
+            </div>
           </div>
         </div>
       </div>
@@ -227,7 +358,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
         >
           <Building2 size={16} />
-          <span>Instituciones ({allInstitutions.length})</span>
+          <span>Instituciones Registradas ({allInstitutions.length})</span>
         </button>
         <button
           onClick={() => setActiveTab('USERS')}
@@ -235,17 +366,57 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
         >
           <Users size={16} />
-          <span>Usuarios del Sistema ({allUsers.length})</span>
+          <span>Usuarios y Gestión de Membresías ({allUsers.length})</span>
         </button>
       </div>
 
-      {/* PESTAÑA 1: LISTADO DE INSTITUCIONES */}
+      {/* PESTAÑA 1: INSTITUCIONES */}
       {activeTab === 'INSTITUTIONS' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
+          {/* Card Crear Institución */}
+          <div
+            onClick={() => setIsAddInstitutionOpen(true)}
+            className="glass-panel hover-lift"
+            style={{
+              padding: '24px',
+              borderRadius: '16px',
+              border: '2px dashed rgba(124, 58, 237, 0.4)',
+              background: 'rgba(124, 58, 237, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '220px',
+              cursor: 'pointer',
+              textAlign: 'center',
+              gap: '12px'
+            }}
+          >
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '50%',
+              background: 'rgba(124, 58, 237, 0.15)',
+              color: '#7c3aed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Plus size={28} />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 800 }}>Registrar Nueva Institución</h3>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Colegio, escuela o universidad con su propio ecosistema.
+              </p>
+            </div>
+          </div>
+
+          {/* Listado de Instituciones */}
           {allInstitutions.map((inst) => {
-            const instGroups = groups.filter(g => g.institutionId === inst.id);
             const instUsers = allUsers.filter(u => u.institutionId === inst.id);
             const instDirector = instUsers.find(u => u.role === 'DIRECTOR');
+            const instGroups = groups.filter(g => g.institutionId === inst.id);
 
             return (
               <div
@@ -254,55 +425,48 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                 style={{
                   padding: '20px',
                   borderRadius: '16px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-card)'
+                  gap: '14px'
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    {(() => {
-                      const getInstBadgeInfo = (type: InstitutionType) => {
-                        switch (type) {
-                          case 'UNIVERSITY':
-                            return { label: 'Universidad', bg: 'rgba(168, 85, 247, 0.15)', text: '#a855f7' };
-                          case 'SCHOOL':
-                            return { label: 'Escuela', bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' };
-                          case 'INDEPENDENT':
-                            return { label: 'Docente Independiente', bg: 'rgba(16, 185, 129, 0.15)', text: '#059669' };
-                          case 'COLLEGE':
-                          default:
-                            return { label: 'Colegio', bg: 'rgba(79, 70, 229, 0.15)', text: '#4f46e5' };
-                        }
-                      };
-                      const bInfo = getInstBadgeInfo(inst.type);
-                      return (
-                        <>
-                          <div style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '12px',
-                            background: bInfo.bg,
-                            color: bInfo.text,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            {inst.type === 'UNIVERSITY' ? <GraduationCap size={22} /> : <Building2 size={22} />}
-                          </div>
-                          <span className="badge" style={{
-                            background: bInfo.bg,
-                            color: bInfo.text,
-                            fontSize: '0.72rem',
-                            fontWeight: 700
-                          }}>
-                            {bInfo.label}
-                          </span>
-                        </>
-                      );
-                    })()}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: 'rgba(79, 70, 229, 0.1)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid var(--border-subtle)'
+                      }}>
+                        {inst.logoUrl ? (
+                          <img src={inst.logoUrl} alt={inst.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <Building2 size={22} color="#4f46e5" />
+                        )}
+                      </div>
+                      <span className="badge" style={{ background: 'rgba(79, 70, 229, 0.15)', color: '#4f46e5', fontSize: '0.72rem', fontWeight: 700 }}>
+                        {inst.type === 'UNIVERSITY' ? 'Universidad' : inst.type === 'SCHOOL' ? 'Escuela' : inst.type === 'INDEPENDENT' ? 'Independiente' : 'Colegio'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingInstitution(inst)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '4px 6px', color: '#4f46e5' }}
+                      title="Editar información de la institución"
+                    >
+                      <Edit3 size={15} />
+                    </button>
                   </div>
 
                   <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>
@@ -350,18 +514,27 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
         </div>
       )}
 
-      {/* PESTAÑA 2: LISTADO DE USUARIOS */}
+      {/* PESTAÑA 2: LISTADO DE USUARIOS Y GESTIÓN DE MEMBRESÍAS */}
       {activeTab === 'USERS' && (
         <div className="glass-panel" style={{
           padding: '20px',
           borderRadius: '16px',
           border: '1px solid var(--border-subtle)',
-          background: 'var(--bg-card)'
+          background: 'var(--bg-card)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
-              Todos los Usuarios Registrados ({allUsers.length})
-            </h3>
+          {/* Cabecera y Botón Nuevo Usuario */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
+                Control de Usuarios y Membresías ({filteredUsers.length})
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Filtra por institución o docentes independientes, gestiona planes de licencia y estado de suscripciones.
+              </p>
+            </div>
             <button
               onClick={() => setIsAddUserOpen(true)}
               className="btn btn-primary btn-sm"
@@ -372,29 +545,128 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
             </button>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
+          {/* Barra de Filtros interactivos */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            background: 'var(--bg-surface)',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            {/* Buscador de Usuarios */}
+            <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+              <Search size={16} color="#6366f1" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, correo o cédula..."
+                value={userSearchQuery}
+                onChange={e => setUserSearchQuery(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', padding: '8px 12px 8px 36px', fontSize: '0.85rem' }}
+              />
+              {userSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setUserSearchQuery('')}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Selector por Institución o Independientes */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>Filtrar:</span>
+              <select
+                value={selectedInstFilter}
+                onChange={e => setSelectedInstFilter(e.target.value)}
+                className="input-field"
+                style={{ padding: '8px 12px', fontSize: '0.82rem', fontWeight: 600, minWidth: '220px' }}
+              >
+                <option value="ALL">🏢 Todas las Instituciones ({allUsers.length})</option>
+                <option value="INDEPENDENT">👨‍🏫 Docentes Independientes ({indepCount})</option>
+                {allInstitutions.map(inst => {
+                  const count = allUsers.filter(u => u.institutionId === inst.id).length;
+                  return (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Selector por Rol */}
+              <select
+                value={selectedRoleFilter}
+                onChange={e => setSelectedRoleFilter(e.target.value)}
+                className="input-field"
+                style={{ padding: '8px 12px', fontSize: '0.82rem', fontWeight: 600 }}
+              >
+                <option value="ALL">Todos los Roles</option>
+                <option value="DIRECTOR">Directores</option>
+                <option value="ADMIN">Administrativos</option>
+                <option value="TEACHER">Docentes</option>
+                <option value="DEVELOPER">Desarrolladores</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tabla de Usuarios */}
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-subtle)', textAlign: 'left' }}>
-                  <th style={{ padding: '10px 12px' }}>Nombre</th>
-                  <th style={{ padding: '10px 12px' }}>Correo Electrónico</th>
-                  <th style={{ padding: '10px 12px' }}>Rol</th>
-                  <th style={{ padding: '10px 12px' }}>Institución</th>
-                  <th style={{ padding: '10px 12px' }}>Cargo / Especialidad</th>
+                <tr style={{ borderBottom: '2px solid var(--border-subtle)', background: 'var(--bg-surface)', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 14px' }}>Usuario</th>
+                  <th style={{ padding: '12px 14px' }}>Cédula / Teléfono</th>
+                  <th style={{ padding: '12px 14px' }}>Correo Electrónico</th>
+                  <th style={{ padding: '12px 14px' }}>Rol</th>
+                  <th style={{ padding: '12px 14px' }}>Institución</th>
+                  <th style={{ padding: '12px 14px' }}>Membresía & Estado</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {allUsers.map((u) => {
+                {filteredUsers.map((u) => {
                   const inst = allInstitutions.find(i => i.id === u.institutionId);
                   const isDev = u.role === 'DEVELOPER' || u.role === 'SUPERADMIN';
                   const isDir = u.role === 'DIRECTOR';
                   const isAdmin = u.role === 'ADMIN';
 
+                  const plan = u.membershipPlan || 'ANNUAL';
+                  const status = u.membershipStatus || 'ACTIVE';
+
+                  const getStatusBadge = (st: MembershipStatus) => {
+                    switch (st) {
+                      case 'ACTIVE':
+                        return { bg: 'rgba(16, 185, 129, 0.15)', text: '#059669', label: 'Activa' };
+                      case 'TRIAL':
+                        return { bg: 'rgba(59, 130, 246, 0.15)', text: '#2563eb', label: 'En Prueba' };
+                      case 'EXPIRED':
+                        return { bg: 'rgba(239, 68, 68, 0.15)', text: '#dc2626', label: 'Vencida' };
+                      case 'INACTIVE':
+                      default:
+                        return { bg: 'rgba(156, 163, 175, 0.2)', text: '#4b5563', label: 'Inactiva' };
+                    }
+                  };
+                  const sBadge = getStatusBadge(status);
+
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 700 }}>{u.name}</td>
-                      <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{u.email}</td>
-                      <td style={{ padding: '10px 12px' }}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{u.name}</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{u.title || 'Funcionario'}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                        <div>{u.idNumber || '—'}</div>
+                        {u.phone && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>📞 {u.phone}</div>}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{u.email}</td>
+                      <td style={{ padding: '12px 14px' }}>
                         <span className="badge" style={{
                           background: isDev ? 'rgba(124, 58, 237, 0.15)' : isDir ? 'rgba(79, 70, 229, 0.15)' : isAdmin ? 'rgba(6, 182, 212, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                           color: isDev ? '#7c3aed' : isDir ? '#4f46e5' : isAdmin ? '#0891b2' : '#059669',
@@ -404,13 +676,509 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                           {isDev ? '👑 Desarrollador' : isDir ? '🏫 Director' : isAdmin ? '📋 Administrativo' : '👩‍🏫 Docente'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px' }}>{inst ? inst.name : 'Global'}</td>
-                      <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{u.title || '—'}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {u.institutionId === 'inst-indep-01' ? (
+                          <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669' }}>
+                            Independiente
+                          </span>
+                        ) : inst ? inst.name : 'Global'}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="badge" style={{ background: sBadge.bg, color: sBadge.text, fontWeight: 700, fontSize: '0.72rem' }}>
+                            ● {sBadge.label}
+                          </span>
+                          <span className="badge" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', fontSize: '0.7rem' }}>
+                            {plan === 'LIFETIME' ? 'Vitalicia' : plan === 'ANNUAL' ? 'Anual' : plan === 'MONTHLY' ? 'Mensual' : 'Gratis'}
+                          </span>
+                        </div>
+                        {u.membershipExpiresAt && plan !== 'LIFETIME' && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Vence: {u.membershipExpiresAt}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMembershipModal(u)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '5px 8px', fontSize: '0.75rem', fontWeight: 700 }}
+                            title="Gestionar membresía y licencia"
+                          >
+                            <Sparkles size={13} color="#7c3aed" />
+                            <span>Membresía</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingUser(u)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '5px 8px', color: '#4f46e5' }}
+                            title="Editar usuario"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(u)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '5px 8px', color: '#ef4444' }}
+                            title="Eliminar usuario"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
+
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No se encontraron usuarios que coincidan con los filtros seleccionados.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GESTIONAR MEMBRESÍA Y LICENCIA */}
+      {membershipModalUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 400,
+          padding: '16px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            borderRadius: '16px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Gestionar Membresía</h3>
+              </div>
+              <button onClick={() => setMembershipModalUser(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--bg-surface)', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px', fontSize: '0.84rem' }}>
+              <div>Usuario: <strong>{membershipModalUser.name}</strong></div>
+              <div style={{ color: 'var(--text-muted)' }}>{membershipModalUser.email}</div>
+            </div>
+
+            <form onSubmit={handleSaveMembership} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Plan de Membresía:
+                </label>
+                <select
+                  value={mPlan}
+                  onChange={e => setMPlan(e.target.value as MembershipPlan)}
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px', fontWeight: 600 }}
+                >
+                  <option value="MONTHLY">📅 Plan Mensual</option>
+                  <option value="ANNUAL">🌟 Plan Anual (Recomendado)</option>
+                  <option value="LIFETIME">👑 Licencia Vitalicia (Permanente)</option>
+                  <option value="FREE">🆓 Plan Gratuito / Período Básico</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Estado de la Suscripción:
+                </label>
+                <select
+                  value={mStatus}
+                  onChange={e => setMStatus(e.target.value as MembershipStatus)}
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px', fontWeight: 600 }}
+                >
+                  <option value="ACTIVE">🟢 Activa (Acceso Total)</option>
+                  <option value="TRIAL">🔵 En Período de Prueba</option>
+                  <option value="EXPIRED">🔴 Vencida (Pago Pendiente)</option>
+                  <option value="INACTIVE">⚪ Inactiva / Pausada</option>
+                </select>
+              </div>
+
+              {mPlan !== 'LIFETIME' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Fecha de Vencimiento:
+                  </label>
+                  <input
+                    type="date"
+                    value={mExpiresAt}
+                    onChange={e => setMExpiresAt(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontWeight: 600 }}
+                  />
+
+                  {/* Botones de duración rápida */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSetQuickDuration(30)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                    >
+                      +30 días
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetQuickDuration(365)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                    >
+                      +1 año
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMPlan('LIFETIME')}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px', color: '#7c3aed' }}
+                    >
+                      Vitalicia
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setMembershipModalUser(null)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' }}>
+                  Guardar Membresía
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR USUARIO (MODO DESARROLLADOR) */}
+      {editingUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 400,
+          padding: '16px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '520px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '24px',
+            borderRadius: '16px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={20} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Editar Usuario</h3>
+              </div>
+              <button onClick={() => setEditingUser(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Cédula con Botón de Búsqueda (Solo Lupa) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Cédula / Identificación:
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={editingUser.idNumber || ''}
+                    onChange={e => setEditingUser({ ...editingUser, idNumber: e.target.value })}
+                    className="input-field"
+                    style={{ flex: 1, padding: '9px 12px', fontFamily: 'monospace', fontWeight: 600 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleQueryCedulaForEdit(editingUser.idNumber || '')}
+                    disabled={isQueryingEditCedula || !editingUser.idNumber?.trim()}
+                    className="btn btn-primary"
+                    style={{ padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Consultar identificación"
+                  >
+                    {isQueryingEditCedula ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Nombre Completo *</label>
+                <input
+                  type="text"
+                  value={editingUser.name}
+                  onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
+                  required
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Correo Electrónico *</label>
+                  <input
+                    type="email"
+                    value={editingUser.email}
+                    onChange={e => setEditingUser({ ...editingUser, email: e.target.value })}
+                    required
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Contraseña *</label>
+                  <input
+                    type="text"
+                    value={editingUser.password || '123'}
+                    onChange={e => setEditingUser({ ...editingUser, password: e.target.value })}
+                    required
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Rol Asignado *</label>
+                  <select
+                    value={editingUser.role}
+                    onChange={e => setEditingUser({ ...editingUser, role: e.target.value as any })}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontWeight: 700 }}
+                  >
+                    <option value="DIRECTOR">🏫 Director Institucional</option>
+                    <option value="ADMIN">📋 Administrativo</option>
+                    <option value="TEACHER">👩‍🏫 Docente</option>
+                    <option value="DEVELOPER">👑 Desarrollador</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Institución *</label>
+                  <select
+                    value={editingUser.institutionId}
+                    onChange={e => setEditingUser({ ...editingUser, institutionId: e.target.value })}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  >
+                    {allInstitutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Teléfono</label>
+                  <input
+                    type="text"
+                    value={editingUser.phone || ''}
+                    onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
+                    placeholder="8888-8888"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Cargo / Especialidad</label>
+                  <input
+                    type="text"
+                    value={editingUser.title || ''}
+                    onChange={e => setEditingUser({ ...editingUser, title: e.target.value })}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setEditingUser(null)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' }}>
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR INSTITUCIÓN */}
+      {editingInstitution && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 400,
+          padding: '16px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '520px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '24px',
+            borderRadius: '16px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Building2 size={20} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Editar Institución</h3>
+              </div>
+              <button onClick={() => setEditingInstitution(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateInstitution} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Logo / Foto URL con preview */}
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'center', background: 'var(--bg-surface)', padding: '12px', borderRadius: '10px' }}>
+                <div style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '10px',
+                  background: 'var(--bg-main)',
+                  border: '1px solid var(--border-subtle)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {editingInstitution.logoUrl ? (
+                    <img src={editingInstitution.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Building2 size={24} color="#7c3aed" />
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>URL del Logotipo / Foto:</label>
+                  <input
+                    type="url"
+                    value={editingInstitution.logoUrl || ''}
+                    onChange={e => setEditingInstitution({ ...editingInstitution, logoUrl: e.target.value })}
+                    placeholder="https://ejemplo.com/logo.png"
+                    className="input-field"
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Nombre de la Institución *</label>
+                <input
+                  type="text"
+                  value={editingInstitution.name}
+                  onChange={e => setEditingInstitution({ ...editingInstitution, name: e.target.value })}
+                  required
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Código Institucional *</label>
+                  <input
+                    type="text"
+                    value={editingInstitution.code}
+                    onChange={e => setEditingInstitution({ ...editingInstitution, code: e.target.value })}
+                    required
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Tipo de Institución *</label>
+                  <select
+                    value={editingInstitution.type}
+                    onChange={e => setEditingInstitution({ ...editingInstitution, type: e.target.value as any })}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontWeight: 700 }}
+                  >
+                    <option value="COLLEGE">🏫 Colegio (Secundaria)</option>
+                    <option value="SCHOOL">🎒 Escuela (Primaria)</option>
+                    <option value="UNIVERSITY">🎓 Universidad / Instituto</option>
+                    <option value="INDEPENDENT">👨‍🏫 Espacio Independiente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Circuito Escolar</label>
+                  <input
+                    type="text"
+                    value={editingInstitution.circuit || ''}
+                    onChange={e => setEditingInstitution({ ...editingInstitution, circuit: e.target.value })}
+                    placeholder="Ej. Circuito 02"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Dirección Regional</label>
+                  <input
+                    type="text"
+                    value={editingInstitution.regionalDirection || ''}
+                    onChange={e => setEditingInstitution({ ...editingInstitution, regionalDirection: e.target.value })}
+                    placeholder="Ej. DRE Alajuela"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setEditingInstitution(null)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' }}>
+                  Guardar Institución
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -450,35 +1218,50 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   type="text"
                   value={instName}
                   onChange={(e) => setInstName(e.target.value)}
-                  placeholder="Ej. CTP Puriscal"
+                  placeholder="Ej. Liceo de Poás"
                   required
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>URL del Logo o Fotografía:</label>
+                <input
+                  type="url"
+                  value={instLogoUrl}
+                  onChange={(e) => setInstLogoUrl(e.target.value)}
+                  placeholder="https://ejemplo.com/logo.png"
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Código MEP / Identificador *</label>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Código Institucional *</label>
                   <input
                     type="text"
                     value={instCode}
                     onChange={(e) => setInstCode(e.target.value)}
-                    placeholder="Ej. 4520"
+                    placeholder="Ej. CTP-001"
                     required
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontFamily: 'monospace' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Tipo de Institución *</label>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Tipo de Centro *</label>
                   <select
                     value={instType}
-                    onChange={(e) => setInstType(e.target.value as InstitutionType)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    onChange={(e) => setInstType(e.target.value as any)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontWeight: 700 }}
                   >
-                    <option value="COLLEGE">🏫 Colegio (Secundaria / Técnico / Académico)</option>
-                    <option value="SCHOOL">🎒 Escuela (Primaria)</option>
-                    <option value="UNIVERSITY">🎓 Universidad (Educación Superior)</option>
-                    <option value="INDEPENDENT">👤 Docente Independiente</option>
+                    <option value="COLLEGE">Colegio</option>
+                    <option value="SCHOOL">Escuela</option>
+                    <option value="UNIVERSITY">Universidad</option>
+                    <option value="INDEPENDENT">Independiente</option>
                   </select>
                 </div>
               </div>
@@ -490,8 +1273,9 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     type="text"
                     value={instCircuit}
                     onChange={(e) => setInstCircuit(e.target.value)}
-                    placeholder="Ej. 04"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    placeholder="Ej. Circuito 01"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
                   />
                 </div>
                 <div>
@@ -500,8 +1284,9 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     type="text"
                     value={instRegional}
                     onChange={(e) => setInstRegional(e.target.value)}
-                    placeholder="Ej. Puriscal"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    placeholder="Ej. Alajuela"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
                   />
                 </div>
               </div>
@@ -515,7 +1300,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: NUEVO USUARIO (MODO DESARROLLADOR - TODOS LOS ROLES) */}
+      {/* MODAL: NUEVO USUARIO */}
       {isAddUserOpen && (
         <div style={{
           position: 'fixed',
@@ -530,7 +1315,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
         }}>
           <div className="glass-panel" style={{
             width: '100%',
-            maxWidth: '500px',
+            maxWidth: '520px',
             padding: '24px',
             borderRadius: '16px',
             background: 'var(--bg-card)',
@@ -540,7 +1325,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Crear Nuevo Usuario</h3>
                 <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Como Desarrollador, puedes asignar cualquier rol (Director, Admin, Docente o Desarrollador).
+                  Asigna cualquier rol (Director, Admin, Docente o Desarrollador) con autocompletado de cédula.
                 </p>
               </div>
               <button onClick={() => setIsAddUserOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -556,6 +1341,39 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
             )}
 
             <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Cédula con Botón de Búsqueda (Solo Lupa) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Cédula / Identificación:
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={userIdNumber}
+                    onChange={e => {
+                      setUserIdNumber(e.target.value);
+                      const clean = e.target.value.replace(/[^0-9]/g, '');
+                      if (clean.length === 9 && !userName) {
+                        handleQueryCedulaForAdd(clean);
+                      }
+                    }}
+                    placeholder="Ej. 109870654"
+                    className="input-field"
+                    style={{ flex: 1, padding: '9px 12px', fontFamily: 'monospace', fontWeight: 600 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleQueryCedulaForAdd(userIdNumber)}
+                    disabled={isQueryingAddCedula || !userIdNumber.trim()}
+                    className="btn btn-primary"
+                    style={{ padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Consultar identificación"
+                  >
+                    {isQueryingAddCedula ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Nombre Completo *</label>
                 <input
@@ -564,7 +1382,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   onChange={(e) => setUserName(e.target.value)}
                   placeholder="Ej. Lic. Ana Vargas Solís"
                   required
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                  className="input-field"
+                  style={{ width: '100%', padding: '9px 12px' }}
                 />
               </div>
 
@@ -577,7 +1396,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     onChange={(e) => setUserEmail(e.target.value)}
                     placeholder="correo@mep.go.cr"
                     required
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
                   />
                 </div>
                 <div>
@@ -588,7 +1408,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     onChange={(e) => setUserPassword(e.target.value)}
                     placeholder="123"
                     required
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
                   />
                 </div>
               </div>
@@ -599,7 +1420,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   <select
                     value={userRole}
                     onChange={(e) => setUserRole(e.target.value as any)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box', fontWeight: 700 }}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px', fontWeight: 700 }}
                   >
                     <option value="DIRECTOR">🏫 Director Institucional</option>
                     <option value="ADMIN">📋 Administrativo</option>
@@ -612,7 +1434,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   <select
                     value={userInstitutionId}
                     onChange={(e) => setUserInstitutionId(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
                   >
                     {allInstitutions.map(inst => (
                       <option key={inst.id} value={inst.id}>{inst.name}</option>
@@ -621,15 +1444,29 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Título o Especialidad</label>
-                <input
-                  type="text"
-                  value={userTitle}
-                  onChange={(e) => setUserTitle(e.target.value)}
-                  placeholder="Ej. Director / Docente Especialidad Matemáticas"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', color: 'var(--text-main)', boxSizing: 'border-box' }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Teléfono</label>
+                  <input
+                    type="text"
+                    value={userPhone}
+                    onChange={(e) => setUserPhone(e.target.value)}
+                    placeholder="8888-8888"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Cargo / Especialidad</label>
+                  <input
+                    type="text"
+                    value={userTitle}
+                    onChange={(e) => setUserTitle(e.target.value)}
+                    placeholder="Ej. Docente Matemáticas"
+                    className="input-field"
+                    style={{ width: '100%', padding: '9px 12px' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>

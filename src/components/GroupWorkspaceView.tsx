@@ -1014,7 +1014,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                 onClick={() => setShowAddStudentModal(true)}
                 className="btn btn-secondary btn-sm"
                 style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-                title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+                title="Agregar estudiante nuevo con autocompletado por cédula o manual"
               >
                 <UserPlus size={14} color="#6366f1" />
                 + Estudiante
@@ -1455,7 +1455,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                   onClick={() => setShowAddStudentModal(true)}
                   className="btn btn-secondary btn-sm"
                   style={{ width: '100%', justifyContent: 'flex-start', gap: '7px', fontSize: '0.78rem' }}
-                  title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+                  title="Agregar estudiante nuevo con autocompletado por cédula o manual"
                 >
                   <UserPlus size={14} color="#6366f1" />
                   <span>+ Estudiante</span>
@@ -1684,7 +1684,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     onClick={() => setShowAddStudentModal(true)}
                     className="btn btn-primary"
                     style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px' }}
-                    title="Agregar estudiante nuevo con autocompletado de Hacienda o manual"
+                    title="Agregar estudiante nuevo con autocompletado por cédula o manual"
                   >
                     <UserPlus size={15} />
                     <span>+ Agregar Estudiante</span>

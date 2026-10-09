@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
-import { Edit3, Search, CheckCircle2, AlertCircle, X, Sparkles } from 'lucide-react';
-import type { Student, AccommodationType } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Edit3, Search, CheckCircle2, AlertCircle, X, Loader2, ArrowRightLeft, Layers } from 'lucide-react';
+import type { Student, AccommodationType, Group } from '../types';
 import { db } from '../db';
 
 interface EditStudentModalProps {
   student: Student;
+  groups?: Group[];
   onClose: () => void;
   onStudentUpdated: () => void;
 }
 
 export const EditStudentModal: React.FC<EditStudentModalProps> = ({
   student,
+  groups,
   onClose,
   onStudentUpdated
 }) => {
@@ -20,23 +22,33 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
   const [secondLastName, setSecondLastName] = useState(student.secondLastName || '');
   const [accommodation, setAccommodation] = useState<AccommodationType>(student.accommodation || 'NONE');
   const [parentContact, setParentContact] = useState(student.parentContact || '');
+  const [selectedGroupId, setSelectedGroupId] = useState(student.groupId);
+  const [availableGroups, setAvailableGroups] = useState<Group[]>(groups || []);
   const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [apiMessage, setApiMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!groups || groups.length === 0) {
+      db.groups.toArray().then(setAvailableGroups);
+    }
+  }, [groups]);
 
   const formatWord = (str: string) => {
     return str
       .toLowerCase()
       .split(' ')
+      .filter(Boolean)
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
   };
 
-  const handleQueryHacienda = async () => {
+  const handleQueryCedula = async () => {
     const cleanCedula = idNumber.replace(/[^0-9]/g, '');
     if (cleanCedula.length < 9) {
       setApiMessage({
         type: 'warning',
-        text: 'La cédula debe tener al menos 9 dígitos para consultar en Hacienda.'
+        text: 'La identificación costarricense debe tener al menos 9 dígitos.'
       });
       return;
     }
@@ -50,7 +62,7 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
         const data = await res.json();
         if (data && data.nombre) {
           const rawFullName = String(data.nombre).trim();
-          const tokens = rawFullName.split(/\s+/);
+          const tokens = rawFullName.split(/\s+/).filter(Boolean);
           if (tokens.length >= 3) {
             const a2 = tokens.pop()!;
             const a1 = tokens.pop()!;
@@ -67,13 +79,13 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
           }
           setApiMessage({
             type: 'success',
-            text: `¡Nombre actualizado desde Hacienda!: ${rawFullName}`
+            text: `¡Identificación encontrada!: ${rawFullName}`
           });
         }
       } else {
         setApiMessage({
           type: 'warning',
-          text: 'No se encontraron datos en Hacienda. Puedes editar los campos manualmente.'
+          text: 'No se encontraron datos en el registro. Puedes editar los campos manualmente.'
         });
       }
     } catch {
@@ -85,6 +97,10 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
       setIsLoadingApi(false);
     }
   };
+
+  const currentGroup = availableGroups.find(g => g.id === student.groupId);
+  const targetGroup = availableGroups.find(g => g.id === selectedGroupId);
+  const isChangingSection = selectedGroupId !== student.groupId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,17 +125,63 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
       return;
     }
 
-    await db.students.update(student.id, {
-      idNumber: idNumber.trim(),
-      firstLastName: firstLastName.trim(),
-      secondLastName: secondLastName.trim(),
-      firstName: firstName.trim(),
-      accommodation,
-      parentContact: parentContact.trim() || undefined
-    });
+    setIsSaving(true);
+    try {
+      // Si se cambia de sección, trasladar notas de materias coincidentes
+      if (isChangingSection) {
+        const oldAssignments = await db.assignments.where('groupId').equals(student.groupId).toArray();
+        const newAssignments = await db.assignments.where('groupId').equals(selectedGroupId).toArray();
 
-    onStudentUpdated();
-    onClose();
+        let transferredCount = 0;
+        for (const oldAsg of oldAssignments) {
+          const matchingNewAsg = newAssignments.find(na => na.subjectId === oldAsg.subjectId);
+          if (matchingNewAsg) {
+            transferredCount++;
+            // 1. Tareas
+            const tGrades = await db.taskGrades.where('assignmentId').equals(oldAsg.id).filter(g => g.studentId === student.id).toArray();
+            for (const tg of tGrades) {
+              await db.taskGrades.update(tg.id, { assignmentId: matchingNewAsg.id });
+            }
+
+            // 2. Exámenes
+            const eGrades = await db.examGrades.where('assignmentId').equals(oldAsg.id).filter(g => g.studentId === student.id).toArray();
+            for (const eg of eGrades) {
+              await db.examGrades.update(eg.id, { assignmentId: matchingNewAsg.id });
+            }
+
+            // 3. Proyectos
+            const pGrades = await db.projectGrades.where('assignmentId').equals(oldAsg.id).filter(g => g.studentId === student.id).toArray();
+            for (const pg of pGrades) {
+              await db.projectGrades.update(pg.id, { assignmentId: matchingNewAsg.id });
+            }
+
+            // 4. Portafolio
+            const pfGrades = await db.portfolioGrades.where('assignmentId').equals(oldAsg.id).filter(g => g.studentId === student.id).toArray();
+            for (const pfg of pfGrades) {
+              await db.portfolioGrades.update(pfg.id, { assignmentId: matchingNewAsg.id });
+            }
+          }
+        }
+      }
+
+      await db.students.update(student.id, {
+        idNumber: idNumber.trim(),
+        firstLastName: firstLastName.trim(),
+        secondLastName: secondLastName.trim(),
+        firstName: firstName.trim(),
+        groupId: selectedGroupId,
+        accommodation,
+        parentContact: parentContact.trim() || undefined
+      });
+
+      onStudentUpdated();
+      onClose();
+    } catch (err) {
+      console.error('Error al actualizar estudiante:', err);
+      alert('Ocurrió un error al guardar los cambios.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -139,7 +201,7 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
     }}>
       <div className="glass-panel" style={{
         width: '100%',
-        maxWidth: '540px',
+        maxWidth: '560px',
         padding: '24px',
         display: 'flex',
         flexDirection: 'column',
@@ -166,7 +228,7 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
             <div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Editar Estudiante</h3>
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Modifica los datos personales o adecuación curricular
+                Modifica datos personales, sección asignada o adecuación
               </p>
             </div>
           </div>
@@ -203,14 +265,13 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
               />
               <button
                 type="button"
-                onClick={handleQueryHacienda}
+                onClick={handleQueryCedula}
                 disabled={isLoadingApi}
                 className="btn btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
-                title="Consultar API Hacienda para auto-actualizar nombres"
+                style={{ padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Consultar identificación"
               >
-                <Search size={14} />
-                <span>{isLoadingApi ? 'Buscando...' : 'Hacienda'}</span>
+                {isLoadingApi ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
               </button>
             </div>
           </div>
@@ -231,6 +292,61 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
               <span>{apiMessage.text}</span>
             </div>
           )}
+
+          {/* Sección Asignada / Reasignar Sección con Traslado de Notas */}
+          <div style={{
+            background: isChangingSection ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-main)',
+            border: isChangingSection ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-subtle)',
+            borderRadius: '10px',
+            padding: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Layers size={15} color="#4f46e5" />
+                Sección / Grupo Asignado:
+              </label>
+              {isChangingSection && (
+                <span className="badge" style={{ background: '#f59e0b', color: 'white', fontSize: '0.7rem' }}>
+                  <ArrowRightLeft size={11} style={{ marginRight: '4px' }} /> Traslado en progreso
+                </span>
+              )}
+            </div>
+
+            <select
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-main)',
+                fontSize: '0.9rem',
+                fontWeight: 600
+              }}
+            >
+              {availableGroups.map(grp => (
+                <option key={grp.id} value={grp.id}>
+                  {grp.groupName ? `${grp.groupName} (${grp.sectionCode})` : `Sección ${grp.sectionCode} - ${grp.grade}° Año`}
+                </option>
+              ))}
+            </select>
+
+            {isChangingSection && (
+              <div style={{
+                marginTop: '10px',
+                padding: '8px 10px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                borderRadius: '8px',
+                fontSize: '0.76rem',
+                color: '#d97706',
+                lineHeight: 1.4
+              }}>
+                <strong>⚡ Traslado inteligente de notas:</strong> Al cambiar a <em>{targetGroup?.groupName || `Sección ${targetGroup?.sectionCode}`}</em>, el sistema detectará las asignaturas iguales y trasladará automáticamente todas las notas ya obtenidas (tareas, exámenes, proyectos y portafolio).
+              </div>
+            )}
+          </div>
 
           {/* Apellidos */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -346,12 +462,17 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
 
           {/* Botones de Acción */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary">
+            <button type="button" onClick={onClose} disabled={isSaving} className="btn btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={16} />
-              <span>Guardar Cambios</span>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              <span>{isSaving ? 'Guardando...' : 'Guardar Cambios'}</span>
             </button>
           </div>
         </form>
