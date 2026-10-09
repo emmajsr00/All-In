@@ -209,7 +209,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       institutionId: currentInstitution.id,
       name,
       code: (subjectCode.trim() || name.substring(0, 4)).toUpperCase(),
-      color: subjectColor
+      color: subjectColor,
+      teacherId: currentUser.id
     };
 
     await db.subjects.add(newSubject);
@@ -317,7 +318,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
     year: 'numeric'
   }).format(new Date());
 
-  const managingGroup = groups.find(g => g.id === studentManagingGroupId) || (groups.length > 0 ? groups[0] : null);
+  // Grupos y materias filtrados exclusivamente para este docente en modo independiente
+  const myGroups = isIndependent
+    ? groups.filter(g => g.guideTeacherId === currentUser.id || userAssignments.some(a => a.groupId === g.id))
+    : groups;
+
+  const mySubjects = isIndependent
+    ? subjects.filter(s => !s.teacherId || s.teacherId === currentUser.id || userAssignments.some(a => a.subjectId === s.id))
+    : subjects;
+
+  const myGroupIds = new Set(myGroups.map(g => g.id));
+  const myStudents = students.filter(s => myGroupIds.has(s.groupId));
+
+  const managingGroup = myGroups.find(g => g.id === studentManagingGroupId) || (myGroups.length > 0 ? myGroups[0] : null);
   const managingGroupStudents = managingGroup ? students.filter(s => s.groupId === managingGroup.id) : [];
 
   return (
@@ -388,7 +401,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Award size={14} color="#10b981" /> Estudiantes Registrados
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
-              {students.length} Alumnos
+              {myStudents.length} Alumnos
             </div>
           </div>
 
@@ -453,8 +466,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </button>
               <button
                 onClick={() => {
-                  if (groups.length > 0 && !studentManagingGroupId) {
-                    setStudentManagingGroupId(groups[0].id);
+                  if (myGroups.length > 0 && !studentManagingGroupId) {
+                    setStudentManagingGroupId(myGroups[0].id);
                   }
                   setIsManageStudentsOpen(true);
                 }}
@@ -973,7 +986,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
                   Selecciona la Sección / Grupo <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                {groups.length === 0 ? (
+                {myGroups.length === 0 ? (
                   <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.85rem' }}>
                     No tienes secciones creadas todavía. Primero haz clic en "+ Nueva Sección".
                   </div>
@@ -986,7 +999,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     required
                   >
                     <option value="">-- Elige una sección --</option>
-                    {groups.map(g => (
+                    {myGroups.map(g => (
                       <option key={g.id} value={g.id}>
                         {g.groupName || `Sección ${g.sectionCode}`} ({g.specialty || 'General'})
                       </option>
@@ -999,7 +1012,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
                   Selecciona la Materia <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                {subjects.length === 0 ? (
+                {mySubjects.length === 0 ? (
                   <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.85rem' }}>
                     No tienes materias creadas todavía. Primero haz clic en "+ Nueva Materia".
                   </div>
@@ -1012,7 +1025,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     required
                   >
                     <option value="">-- Elige una materia --</option>
-                    {subjects.map(s => (
+                    {mySubjects.map(s => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.code})
                       </option>
@@ -1047,7 +1060,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={groups.length === 0 || subjects.length === 0}
+                  disabled={myGroups.length === 0 || mySubjects.length === 0}
                 >
                   <Check size={16} /> Vincular y Habilitar
                 </button>
@@ -1086,7 +1099,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   className="input-field"
                   style={{ flex: 1 }}
                 >
-                  {groups.map(g => (
+                  {myGroups.map(g => (
                     <option key={g.id} value={g.id}>
                       {g.groupName || `Sección ${g.sectionCode}`} ({students.filter(s => s.groupId === g.id).length} estudiantes)
                     </option>

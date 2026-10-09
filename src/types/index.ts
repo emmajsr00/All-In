@@ -41,6 +41,7 @@ export interface Subject {
   name: string;
   code: string;
   color?: string;
+  teacherId?: string;
 }
 
 export interface TeacherAssignment {
