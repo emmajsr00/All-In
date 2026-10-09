@@ -2244,9 +2244,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Cada clase evalúa un indicador del planeamiento. Nivel 3 = 100%, Nivel 2 = 50%, Nivel 1 = 25%.
                   </p>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(6, 182, 212, 0.12)', color: '#0891b2', padding: '2px 10px', borderRadius: '14px', fontWeight: 700, marginTop: '4px' }}>
-                    <span>⚡ Modo Rápido Excel Activo: Usa Enter o Flechas ↑ ↓ para saltar de alumno</span>
-                  </div>
                 </div>
 
                 <button onClick={() => setShowAddSessionModal(true)} className="btn btn-primary btn-sm">
@@ -2396,10 +2393,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     color: tareasCurrentSum === tareasMaxWeight ? '#10b981' : '#d97706'
                   }}>
                     Asignado: {tareasCurrentSum}% / {tareasMaxWeight}% (Disponible: {(tareasMaxWeight - tareasCurrentSum).toFixed(1)}%)
-                  </div>
-
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
-                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
                   </div>
 
                   <button
@@ -2589,10 +2582,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     Asignado: {evaluacionesCurrentSum}% / {evaluacionesMaxWeight}% (Disponible: {(evaluacionesMaxWeight - evaluacionesCurrentSum).toFixed(1)}%)
                   </div>
 
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
-                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
-                  </div>
-
                   <button
                     onClick={() => {
                       setNewItemTitle(`Evaluación ${(config.examDefinitions || []).length + 1}`);
@@ -2753,10 +2742,6 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     color: proyectosCurrentSum === proyectosMaxWeight ? '#10b981' : '#d97706'
                   }}>
                     Asignado: {proyectosCurrentSum}% / {proyectosMaxWeight}%
-                  </div>
-
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
-                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
                   </div>
 
                   <button
