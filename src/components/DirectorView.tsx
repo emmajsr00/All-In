@@ -2985,19 +2985,11 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       staffName ? staffName.charAt(0).toUpperCase() : <Users size={20} />
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="Pegar URL de foto o subir archivo..."
-                        value={staffAvatarUrl}
-                        onChange={e => setStaffAvatarUrl(e.target.value)}
-                        className="input-field"
-                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                      />
-                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.78rem' }}>
-                        <UploadCloud size={14} color="#4f46e5" />
-                        <span>Subir</span>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                        <UploadCloud size={16} color="#4f46e5" />
+                        <span>Seleccionar Foto desde la PC</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -3005,16 +2997,17 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           onChange={e => handleImageFileRead(e, setStaffAvatarUrl)}
                         />
                       </label>
+                      {staffAvatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setStaffAvatarUrl('')}
+                          style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
-                    {staffAvatarUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setStaffAvatarUrl('')}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                      >
-                        Quitar foto
-                      </button>
-                    )}
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Selecciona una imagen (PNG, JPG, WEBP) desde tu computadora.</span>
                   </div>
                 </div>
               </div>
@@ -3219,19 +3212,11 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                       editingStaffUser.name ? editingStaffUser.name.charAt(0).toUpperCase() : <Users size={20} />
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="Pegar URL de foto o subir archivo..."
-                        value={editingStaffUser.avatarUrl || ''}
-                        onChange={e => setEditingStaffUser({ ...editingStaffUser, avatarUrl: e.target.value })}
-                        className="input-field"
-                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                      />
-                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.78rem' }}>
-                        <UploadCloud size={14} color="#4f46e5" />
-                        <span>Subir</span>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                        <UploadCloud size={16} color="#4f46e5" />
+                        <span>Seleccionar Foto desde la PC</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -3239,16 +3224,17 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                           onChange={e => handleImageFileRead(e, (url) => setEditingStaffUser({ ...editingStaffUser, avatarUrl: url }))}
                         />
                       </label>
+                      {editingStaffUser.avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingStaffUser({ ...editingStaffUser, avatarUrl: undefined })}
+                          style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
-                    {editingStaffUser.avatarUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingStaffUser({ ...editingStaffUser, avatarUrl: undefined })}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                      >
-                        Quitar foto
-                      </button>
-                    )}
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Selecciona una imagen (PNG, JPG, WEBP) desde tu computadora.</span>
                   </div>
                 </div>
               </div>
@@ -3344,22 +3330,14 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   )}
                 </div>
 
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '2px' }}>
                     Logotipo o Fotografía Institucional:
                   </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="url"
-                      placeholder="https://ejemplo.com/logo-colegio.png o subir archivo..."
-                      value={instLogoUrl}
-                      onChange={e => setInstLogoUrl(e.target.value)}
-                      className="input-field"
-                      style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                    />
-                    <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
-                      <UploadCloud size={14} color="#4f46e5" />
-                      <span>Subir</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                      <UploadCloud size={16} color="#4f46e5" />
+                      <span>Seleccionar Imagen desde la PC</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -3367,16 +3345,17 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                         onChange={e => handleImageFileRead(e, setInstLogoUrl)}
                       />
                     </label>
+                    {instLogoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setInstLogoUrl('')}
+                        style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                      >
+                        Quitar imagen
+                      </button>
+                    )}
                   </div>
-                  {instLogoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setInstLogoUrl('')}
-                      style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                    >
-                      Quitar imagen
-                    </button>
-                  )}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Sube el logo oficial (PNG, JPG, SVG, WEBP) desde tu computadora.</span>
                 </div>
               </div>
 

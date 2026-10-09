@@ -392,90 +392,135 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
         </div>
       </div>
 
-      {/* Submenú de Navegación del Desarrollador */}
+      {/* Submenú / Menú Desplegable Superior de Gestión */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px',
-        borderBottom: '1px solid var(--border-subtle)',
-        paddingBottom: '14px'
+        gap: '14px',
+        padding: '12px 18px',
+        borderRadius: '16px',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
       }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setActiveTab('INSTITUTIONS')}
-            className={`btn ${activeTab === 'INSTITUTIONS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 800,
-              padding: '8px 14px',
-              borderRadius: '10px'
-            }}
-          >
-            <Building2 size={16} />
-            <span>Instituciones Educativas</span>
-            <span style={{
-              background: activeTab === 'INSTITUTIONS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
-              padding: '2px 7px',
-              borderRadius: '12px',
-              fontSize: '0.72rem'
-            }}>
-              {allInstitutions.length}
+        {/* Menú Desplegable Superior y Pestañas */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Menú Desplegable Principal de Módulos */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'var(--bg-surface)',
+            padding: '5px 10px',
+            borderRadius: '12px',
+            border: '1px solid rgba(124, 58, 237, 0.3)'
+          }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Layers size={16} color="#7c3aed" />
+              <span>Módulo:</span>
             </span>
-          </button>
+            <select
+              value={activeTab}
+              onChange={e => setActiveTab(e.target.value as any)}
+              className="input-field"
+              style={{
+                padding: '6px 10px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                borderRadius: '8px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: 'var(--text-main)'
+              }}
+            >
+              <option value="INSTITUTIONS">🏢 Instituciones Educativas ({allInstitutions.length})</option>
+              <option value="USERS">👥 Personal & Usuarios ({allUsers.length})</option>
+              <option value="MEMBERSHIPS">🛡️ Control de Membresías ({allUsers.filter(u => u.membershipStatus === 'ACTIVE' || !u.membershipStatus).length} Activas)</option>
+            </select>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('USERS')}
-            className={`btn ${activeTab === 'USERS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 800,
-              padding: '8px 14px',
-              borderRadius: '10px'
-            }}
-          >
-            <Users size={16} />
-            <span>Personal & Usuarios</span>
-            <span style={{
-              background: activeTab === 'USERS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
-              padding: '2px 7px',
-              borderRadius: '12px',
-              fontSize: '0.72rem'
-            }}>
-              {allUsers.length}
-            </span>
-          </button>
+          {/* Accesos rápidos tipo Pill Buttons */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setActiveTab('INSTITUTIONS')}
+              className={`btn ${activeTab === 'INSTITUTIONS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: '10px',
+                fontSize: '0.8rem'
+              }}
+            >
+              <Building2 size={15} />
+              <span>Instituciones</span>
+              <span style={{
+                background: activeTab === 'INSTITUTIONS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontSize: '0.7rem'
+              }}>
+                {allInstitutions.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('MEMBERSHIPS')}
-            className={`btn ${activeTab === 'MEMBERSHIPS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 800,
-              padding: '8px 14px',
-              borderRadius: '10px'
-            }}
-          >
-            <ShieldCheck size={16} />
-            <span>Control de Membresías</span>
-            <span style={{
-              background: activeTab === 'MEMBERSHIPS' ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.15)',
-              color: activeTab === 'MEMBERSHIPS' ? 'white' : '#059669',
-              padding: '2px 7px',
-              borderRadius: '12px',
-              fontSize: '0.72rem',
-              fontWeight: 800
-            }}>
-              {allUsers.filter(u => u.membershipStatus === 'ACTIVE' || !u.membershipStatus).length} Activas
-            </span>
-          </button>
+            <button
+              onClick={() => setActiveTab('USERS')}
+              className={`btn ${activeTab === 'USERS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: '10px',
+                fontSize: '0.8rem'
+              }}
+            >
+              <Users size={15} />
+              <span>Usuarios</span>
+              <span style={{
+                background: activeTab === 'USERS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontSize: '0.7rem'
+              }}>
+                {allUsers.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('MEMBERSHIPS')}
+              className={`btn ${activeTab === 'MEMBERSHIPS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: '10px',
+                fontSize: '0.8rem'
+              }}
+            >
+              <ShieldCheck size={15} />
+              <span>Membresías</span>
+              <span style={{
+                background: activeTab === 'MEMBERSHIPS' ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.15)',
+                color: activeTab === 'MEMBERSHIPS' ? 'white' : '#059669',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontSize: '0.7rem',
+                fontWeight: 800
+              }}>
+                {allUsers.filter(u => u.membershipStatus === 'ACTIVE' || !u.membershipStatus).length} Activas
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Acceso Rápido para Administrar Institución en Vivo */}
@@ -1478,19 +1523,11 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                       editingUser.name ? editingUser.name.charAt(0).toUpperCase() : <Users size={18} />
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="URL de foto o subir archivo..."
-                        value={editingUser.avatarUrl || ''}
-                        onChange={e => setEditingUser({ ...editingUser, avatarUrl: e.target.value })}
-                        className="input-field"
-                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                      />
-                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
-                        <UploadCloud size={14} color="#7c3aed" />
-                        <span>Subir</span>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                        <UploadCloud size={16} color="#7c3aed" />
+                        <span>Seleccionar Foto desde la PC</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1498,16 +1535,17 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                           onChange={e => handleImageFileRead(e, (url) => setEditingUser({ ...editingUser, avatarUrl: url }))}
                         />
                       </label>
+                      {editingUser.avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingUser({ ...editingUser, avatarUrl: undefined })}
+                          style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
-                    {editingUser.avatarUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingUser({ ...editingUser, avatarUrl: undefined })}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                      >
-                        Quitar foto
-                      </button>
-                    )}
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Selecciona una imagen (PNG, JPG, WEBP) desde tu computadora.</span>
                   </div>
                 </div>
               </div>
@@ -1579,20 +1617,12 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     <Building2 size={24} color="#7c3aed" />
                   )}
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '2px' }}>Logotipo o Escudo Institucional:</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="url"
-                      value={editingInstitution.logoUrl || ''}
-                      onChange={e => setEditingInstitution({ ...editingInstitution, logoUrl: e.target.value })}
-                      placeholder="https://ejemplo.com/logo.png o subir..."
-                      className="input-field"
-                      style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                    />
-                    <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
-                      <UploadCloud size={14} color="#7c3aed" />
-                      <span>Subir</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                      <UploadCloud size={16} color="#7c3aed" />
+                      <span>Seleccionar Logo desde la PC</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1600,7 +1630,17 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                         onChange={e => handleImageFileRead(e, (url) => setEditingInstitution({ ...editingInstitution, logoUrl: url }))}
                       />
                     </label>
+                    {editingInstitution.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingInstitution({ ...editingInstitution, logoUrl: undefined })}
+                        style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                      >
+                        Quitar imagen
+                      </button>
+                    )}
                   </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Selecciona el logotipo (PNG, JPG, SVG, WEBP) desde tu computadora.</span>
                 </div>
               </div>
 
@@ -1726,18 +1766,10 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Logotipo o Escudo Institucional:</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="url"
-                    value={instLogoUrl}
-                    onChange={(e) => setInstLogoUrl(e.target.value)}
-                    placeholder="https://ejemplo.com/logo.png o subir..."
-                    className="input-field"
-                    style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                  />
-                  <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
-                    <UploadCloud size={14} color="#7c3aed" />
-                    <span>Subir</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                    <UploadCloud size={16} color="#7c3aed" />
+                    <span>Seleccionar Logo desde la PC</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1745,7 +1777,20 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                       onChange={e => handleImageFileRead(e, setInstLogoUrl)}
                     />
                   </label>
+                  {instLogoUrl && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img src={instLogoUrl} alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setInstLogoUrl('')}
+                        style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                      >
+                        Quitar imagen
+                      </button>
+                    </div>
+                  )}
                 </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Selecciona el logotipo (PNG, JPG, SVG, WEBP) desde tu computadora.</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -2005,19 +2050,11 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                       userName ? userName.charAt(0).toUpperCase() : <Users size={18} />
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="URL de foto o subir archivo..."
-                        value={userAvatarUrl}
-                        onChange={e => setUserAvatarUrl(e.target.value)}
-                        className="input-field"
-                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
-                      />
-                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
-                        <UploadCloud size={14} color="#7c3aed" />
-                        <span>Subir</span>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                        <UploadCloud size={16} color="#7c3aed" />
+                        <span>Seleccionar Foto desde la PC</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -2025,16 +2062,17 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                           onChange={e => handleImageFileRead(e, setUserAvatarUrl)}
                         />
                       </label>
+                      {userAvatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setUserAvatarUrl('')}
+                          style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px' }}
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
-                    {userAvatarUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setUserAvatarUrl('')}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                      >
-                        Quitar foto
-                      </button>
-                    )}
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Selecciona una imagen (PNG, JPG, WEBP) desde tu computadora.</span>
                   </div>
                 </div>
               </div>

@@ -13,10 +13,14 @@ import {
   LogOut,
   ShieldAlert,
   Code2,
-  UserCheck
+  UserCheck,
+  Camera,
+  X,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import type { User, Institution } from '../types';
-import { exportDatabaseBackup, importDatabaseBackup } from '../db';
+import { db, exportDatabaseBackup, importDatabaseBackup } from '../db';
 
 interface HeaderProps {
   currentUser: User;
@@ -30,6 +34,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onNavigateHome: () => void;
   isDeveloperPanelActive?: boolean;
+  onUserDataChanged?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,8 +47,60 @@ export const Header: React.FC<HeaderProps> = ({
   isDarkMode,
   onToggleTheme,
   onNavigateHome,
-  isDeveloperPanelActive
+  isDeveloperPanelActive,
+  onUserDataChanged
 }) => {
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+  const [profileAvatarUrl, setProfileAvatarUrl] = React.useState(currentUser.avatarUrl || '');
+  const [isSavingAvatar, setIsSavingAvatar] = React.useState(false);
+
+  React.useEffect(() => {
+    setProfileAvatarUrl(currentUser.avatarUrl || '');
+  }, [currentUser.avatarUrl]);
+
+  // Subir foto desde la PC (solo archivo local, sin link ni url)
+  const handlePhotoUploadFromPC = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('La imagen no debe superar los 2MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      if (typeof event.target?.result === 'string') {
+        const base64Url = event.target.result;
+        setProfileAvatarUrl(base64Url);
+        setIsSavingAvatar(true);
+        try {
+          await db.users.update(currentUser.id, { avatarUrl: base64Url });
+          if (onUserDataChanged) onUserDataChanged();
+        } catch (err) {
+          console.error('Error al guardar foto:', err);
+          alert('Error al guardar la foto de perfil.');
+        } finally {
+          setIsSavingAvatar(false);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = async () => {
+    if (confirm('¿Deseas quitar tu foto de perfil?')) {
+      setIsSavingAvatar(true);
+      try {
+        await db.users.update(currentUser.id, { avatarUrl: undefined });
+        setProfileAvatarUrl('');
+        if (onUserDataChanged) onUserDataChanged();
+      } catch (err) {
+        console.error('Error al quitar foto:', err);
+      } finally {
+        setIsSavingAvatar(false);
+      }
+    }
+  };
+
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'DEVELOPER':
@@ -356,16 +413,23 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* User Profile Badge */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            background: isDarkMode ? '#1e293b' : '#f8fafc',
-            padding: '5px 12px 5px 6px',
-            borderRadius: '14px',
-            border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`
-          }}>
+          {/* User Profile Badge (Clickable para editar foto y perfil) */}
+          <div
+            onClick={() => setIsProfileModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              background: isDarkMode ? '#1e293b' : '#f8fafc',
+              padding: '5px 12px 5px 6px',
+              borderRadius: '14px',
+              border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            className="hover-lift"
+            title="Haz clic para gestionar tu foto de perfil"
+          >
             <div style={{
               width: '32px',
               height: '32px',
@@ -377,7 +441,8 @@ export const Header: React.FC<HeaderProps> = ({
               justifyContent: 'center',
               fontWeight: 800,
               fontSize: '0.85rem',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              position: 'relative'
             }}>
               {currentUser.avatarUrl ? (
                 <img
@@ -430,6 +495,178 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* MODAL: GESTIÓN DE PERFIL Y FOTO DEL USUARIO CONECTADO */}
+      {isProfileModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 3000,
+          padding: '16px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '440px',
+            padding: '26px',
+            borderRadius: '18px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Camera size={20} color="#4f46e5" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Mi Perfil</h3>
+              </div>
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '14px', marginBottom: '20px' }}>
+              {/* Foto de Perfil en Grande con Overlay */}
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '50%',
+                  background: roleTheme.bg,
+                  color: roleTheme.text,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: '2.4rem',
+                  overflow: 'hidden',
+                  border: '3px solid rgba(79, 70, 229, 0.4)',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                }}>
+                  {profileAvatarUrl ? (
+                    <img
+                      src={profileAvatarUrl}
+                      alt={currentUser.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    currentUser.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+
+                {isSavingAvatar && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white'
+                  }}>
+                    <Loader2 size={24} className="animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 800 }}>
+                  {currentUser.name}
+                </h4>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {currentUser.email}
+                </div>
+                <span className="badge" style={{
+                  background: roleTheme.bg,
+                  color: roleTheme.text,
+                  fontWeight: 700,
+                  padding: '4px 12px',
+                  borderRadius: '12px',
+                  fontSize: '0.76rem'
+                }}>
+                  {getRoleLabel(currentUser.role)}
+                </span>
+              </div>
+            </div>
+
+            {/* Acciones de Foto (Solo Archivo desde la PC, sin Link ni URL) */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              background: 'var(--bg-surface)',
+              padding: '16px',
+              borderRadius: '14px',
+              border: '1px solid var(--border-subtle)',
+              alignItems: 'center'
+            }}>
+              <label
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  padding: '10px 16px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem'
+                }}
+              >
+                <Camera size={16} />
+                <span>{profileAvatarUrl ? 'Cambiar Foto desde la PC' : 'Seleccionar Foto desde la PC'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handlePhotoUploadFromPC}
+                />
+              </label>
+
+              {profileAvatarUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.78rem'
+                  }}
+                >
+                  <Trash2 size={14} />
+                  <span>Quitar foto actual</span>
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '7px 18px', fontWeight: 600 }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

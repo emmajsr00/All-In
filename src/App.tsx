@@ -248,6 +248,7 @@ export const App: React.FC = () => {
           }
         }}
         isDeveloperPanelActive={isDeveloperPanelActive}
+        onUserDataChanged={loadAppData}
       />
 
       {/* Main Content Area */}
