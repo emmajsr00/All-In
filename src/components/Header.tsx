@@ -533,10 +533,10 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* INSTITUTION SWITCHER: Disponible para Desarrollador y Docentes (ya que pueden laborar en múltiples instituciones) */}
-          {(currentUser.role === 'DEVELOPER' || currentUser.role === 'TEACHER') && (
+          {/* INSTITUTION SWITCHER: Solo para Desarrollador en la barra superior */}
+          {currentUser.role === 'DEVELOPER' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {currentUser.role === 'DEVELOPER' && onGoToDeveloperPanel && (
+              {onGoToDeveloperPanel && (
                 <button
                   onClick={onGoToDeveloperPanel}
                   className={`btn btn-sm ${isDeveloperPanelActive ? 'btn-primary' : 'btn-secondary'}`}

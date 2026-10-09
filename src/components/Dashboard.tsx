@@ -61,6 +61,7 @@ interface DashboardProps {
   onSelectAssignment: (assignment: TeacherAssignment) => void;
   onOpenRubricsConfig: (assignment: TeacherAssignment) => void;
   onOpenSchedule: () => void;
+  onSwitchInstitution?: (institutionId: string) => void;
   onDataChanged?: () => void;
 }
 
@@ -77,10 +78,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectAssignment,
   onOpenRubricsConfig,
   onOpenSchedule,
+  onSwitchInstitution,
   onDataChanged
 }) => {
   const userAssignments = assignments.filter(a => a.teacherId === currentUser.id);
   const isIndependent = currentInstitution.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01';
+
+  // Instituciones a las que está vinculado el docente (para permitir cambiar sólo entre sus sedes autorizadas)
+  const teacherLinkedInstitutions = React.useMemo(() => {
+    if (currentUser.role === 'DEVELOPER') {
+      return allInstitutions;
+    }
+    const ids = new Set<string>();
+    if (currentUser.institutionId) ids.add(currentUser.institutionId);
+    if (currentUser.institutionIds && Array.isArray(currentUser.institutionIds)) {
+      currentUser.institutionIds.forEach(id => {
+        if (id) ids.add(id);
+      });
+    }
+    // Añadir instituciones donde el docente tenga asignaciones de clases o sea guía
+    assignments.filter(a => a.teacherId === currentUser.id).forEach(a => {
+      const grp = groups.find(g => g.id === a.groupId);
+      if (grp?.institutionId) ids.add(grp.institutionId);
+    });
+    groups.filter(g => g.guideTeacherId === currentUser.id).forEach(g => {
+      if (g.institutionId) ids.add(g.institutionId);
+    });
+    const list = allInstitutions.filter(inst => ids.has(inst.id));
+    return list.length > 0 ? list : (currentInstitution ? [currentInstitution] : []);
+  }, [currentUser, allInstitutions, assignments, groups, currentInstitution]);
 
   // Estados para herramientas de Docente Independiente
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
@@ -611,6 +637,90 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Horario Semanal
             </button>
           </div>
+        </div>
+
+        {/* SELECTOR DE INSTITUCIÓN (PANTALLA INICIAL) */}
+        <div style={{
+          marginTop: '22px',
+          padding: '16px 20px',
+          background: 'var(--bg-card)',
+          borderRadius: '16px',
+          border: '1px solid var(--border-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+              flexShrink: 0
+            }}>
+              <Building2 size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6366f1' }}>
+                Institución Actual / Sede de Trabajo
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>{currentInstitution?.name || 'Institución no asignada'}</span>
+                {teacherLinkedInstitutions.length === 1 && (
+                  <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
+                    Sede Asignada
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Si el docente está vinculado a múltiples instituciones, puede alternar entre ellas aquí */}
+          {teacherLinkedInstitutions.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Cambiar de institución:
+              </span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {teacherLinkedInstitutions.map((inst) => {
+                  const isSelected = inst.id === currentInstitution?.id;
+                  return (
+                    <button
+                      key={inst.id}
+                      onClick={() => onSwitchInstitution?.(inst.id)}
+                      className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '7px',
+                        padding: '7px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        border: isSelected ? '1.5px solid #4f46e5' : '1px solid var(--border-subtle)',
+                        boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.3)' : 'none'
+                      }}
+                      title={`Cambiar a ${inst.name}`}
+                    >
+                      <Building2 size={14} opacity={isSelected ? 1 : 0.65} />
+                      <span>{inst.name}</span>
+                      {isSelected && <Check size={14} strokeWidth={3} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Stats Grid */}

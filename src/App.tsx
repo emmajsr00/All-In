@@ -326,6 +326,10 @@ export const App: React.FC = () => {
             onSelectAssignment={(asg) => setSelectedAssignment(asg)}
             onOpenRubricsConfig={(asg) => setRubricsConfigAssignment(asg)}
             onOpenSchedule={() => setIsScheduleOpen(true)}
+            onSwitchInstitution={(id) => {
+              setSelectedDevInstitutionId(id);
+              setSelectedAssignment(null);
+            }}
             onDataChanged={loadAppData}
           />
         )}
