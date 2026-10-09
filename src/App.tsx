@@ -166,9 +166,9 @@ export const App: React.FC = () => {
     );
   }
 
-  // Active institution (Para Desarrollador puede ser la seleccionada o la primera; para otros, su institución asignada)
-  const currentInstitution = currentUser.role === 'DEVELOPER'
-    ? (allInstitutions.find(i => i.id === selectedDevInstitutionId) || allInstitutions[0])
+  // Active institution (Para Desarrollador o Docentes que laboran en múltiples instituciones)
+  const currentInstitution = (currentUser.role === 'DEVELOPER' || currentUser.role === 'TEACHER') && selectedDevInstitutionId
+    ? (allInstitutions.find(i => i.id === selectedDevInstitutionId) || allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0])
     : (allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0]);
 
   // Filter groups/assignments for current institution
@@ -311,9 +311,10 @@ export const App: React.FC = () => {
           <Dashboard
             currentUser={currentUser}
             currentInstitution={currentInstitution}
-            groups={institutionGroups}
-            subjects={institutionSubjects}
-            assignments={institutionAssignments}
+            allInstitutions={allInstitutions}
+            groups={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? groups : institutionGroups}
+            subjects={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? subjects : institutionSubjects}
+            assignments={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? assignments : institutionAssignments}
             students={students}
             evaluationConfigs={evaluationConfigs}
             schedules={schedules}

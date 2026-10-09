@@ -20,6 +20,7 @@ export interface User {
   password?: string;
   role: UserRole;
   institutionId: string;
+  institutionIds?: string[]; // Instituciones donde labora el docente
   title?: string;
   avatarUrl?: string;
 }
@@ -27,6 +28,7 @@ export interface User {
 export interface Group {
   id: string;
   institutionId: string;
+  institutionName?: string; // Nombre de la institución a la que pertenece esta sección
   grade: number;
   sectionCode: string; // e.g. "12-1" o "01"
   groupName?: string; // e.g. "Grupo 01 - Matutino", "NRC 4512" (para universidades)

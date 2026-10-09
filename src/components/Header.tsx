@@ -157,10 +157,10 @@ export const Header: React.FC<HeaderProps> = ({
             <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Offline-Ready</span>
           </div>
 
-          {/* DEVELOPER SWITCHER: Si el usuario es Desarrollador, puede cambiar entre instituciones y volver a su panel */}
-          {currentUser.role === 'DEVELOPER' && (
+          {/* INSTITUTION SWITCHER: Disponible para Desarrollador y Docentes (ya que pueden laborar en múltiples instituciones) */}
+          {(currentUser.role === 'DEVELOPER' || currentUser.role === 'TEACHER') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {onGoToDeveloperPanel && (
+              {currentUser.role === 'DEVELOPER' && onGoToDeveloperPanel && (
                 <button
                   onClick={onGoToDeveloperPanel}
                   className={`btn btn-sm ${isDeveloperPanelActive ? 'btn-primary' : 'btn-secondary'}`}
@@ -202,7 +202,7 @@ export const Header: React.FC<HeaderProps> = ({
                       outline: 'none',
                       cursor: 'pointer'
                     }}
-                    title="Explorar otra Institución como Desarrollador"
+                    title={currentUser.role === 'DEVELOPER' ? "Explorar otra Institución como Desarrollador" : "Cambiar de Institución para ver tus secciones"}
                   >
                     {allInstitutions.map(inst => (
                       <option key={inst.id} value={inst.id} style={{ background: isDarkMode ? '#1e293b' : '#ffffff', color: isDarkMode ? '#f8fafc' : '#0f172a' }}>

@@ -39,7 +39,8 @@ import type {
   TeacherAssignment,
   Student,
   EvaluationConfig,
-  ScheduleItem
+  ScheduleItem,
+  InstitutionType
 } from '../types';
 import { db } from '../db';
 import { AddStudentModal } from './AddStudentModal';
@@ -50,6 +51,7 @@ import { SectionReportModal } from './SectionReportModal';
 interface DashboardProps {
   currentUser: User;
   currentInstitution: Institution;
+  allInstitutions?: Institution[];
   groups: Group[];
   subjects: Subject[];
   assignments: TeacherAssignment[];
@@ -65,6 +67,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({
   currentUser,
   currentInstitution,
+  allInstitutions = [],
   groups,
   subjects,
   assignments,
@@ -90,7 +93,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [groupSectionCode, setGroupSectionCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupSpecialty, setGroupSpecialty] = useState('');
+  const [groupInstitutionId, setGroupInstitutionId] = useState<string>(currentInstitution.id);
+  const [groupInstitutionName, setGroupInstitutionName] = useState<string>(currentInstitution.name);
   const [groupError, setGroupError] = useState<string | null>(null);
+
+  // Modal para registrar nueva institución (para independientes con múltiples centros educativos)
+  const [isAddNewInstModalOpen, setIsAddNewInstModalOpen] = useState(false);
+  const [newInstName, setNewInstName] = useState('');
+  const [newInstCode, setNewInstCode] = useState('');
+  const [newInstType, setNewInstType] = useState<InstitutionType>('COLLEGE');
+  const [selectedInstFilter, setSelectedInstFilter] = useState<'ALL' | string>('ALL');
 
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
@@ -258,7 +270,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     const newGroup: Group = {
       id: `grp-${Date.now()}`,
-      institutionId: currentInstitution.id,
+      institutionId: groupInstitutionId || currentInstitution.id,
+      institutionName: groupInstitutionName || currentInstitution.name,
       grade: Number(groupGrade) || 7,
       sectionCode: code,
       groupName: groupName.trim() || undefined,
@@ -273,6 +286,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setGroupName('');
     setGroupSpecialty('');
     setStudentManagingGroupId(newGroup.id);
+    if (onDataChanged) onDataChanged();
+  };
+
+  // Registrar nueva institución desde el panel independiente
+  const handleAddNewInstitution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newInstName.trim();
+    if (!name) return;
+
+    const newInst: Institution = {
+      id: `inst-cust-${Date.now()}`,
+      name,
+      code: (newInstCode.trim() || name.substring(0, 4)).toUpperCase(),
+      type: newInstType,
+      createdAt: new Date().toISOString()
+    };
+
+    await db.institutions.add(newInst);
+    setGroupInstitutionId(newInst.id);
+    setGroupInstitutionName(newInst.name);
+    setIsAddNewInstModalOpen(false);
+    setNewInstName('');
+    setNewInstCode('');
     if (onDataChanged) onDataChanged();
   };
 
@@ -473,12 +509,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? myGroups
     : groups.filter(g => userAssignments.some(a => a.groupId === g.id));
 
-  // Grados / Niveles únicos para los botones de filtro estilo Director
+  // Instituciones únicas presentes en las secciones del docente
+  const availableInstitutionsInSections = Array.from(
+    new Set(allTeacherSections.map(g => g.institutionId))
+  ).map(instId => {
+    const inst = allInstitutions.find(i => i.id === instId);
+    const customName = allTeacherSections.find(g => g.institutionId === instId)?.institutionName;
+    return {
+      id: instId,
+      name: inst?.name || customName || 'Institución'
+    };
+  });
+
   const availableGrades = Array.from(new Set(allTeacherSections.map(g => g.grade))).sort((a, b) => a - b);
 
   // Filtrado reactivo de Secciones / Grupos (idéntico a DirectorView)
   const sectionsToDisplay = allTeacherSections.filter(grp => {
     if (selectedGradeFilter !== 'ALL' && grp.grade !== selectedGradeFilter) {
+      return false;
+    }
+
+    if (selectedInstFilter !== 'ALL' && grp.institutionId !== selectedInstFilter) {
       return false;
     }
 
@@ -784,7 +835,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {userAssignments.length} Asignaturas en total
               </span>
               {isIndependent && (
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => { setGroupError(null); setIsAddGroupOpen(true); }}
                     className="btn btn-secondary btn-sm"
@@ -793,17 +844,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <FolderPlus size={15} color="#4f46e5" /> + Nueva Sección
                   </button>
                   <button
-                    onClick={() => {
-                      setLinkInstError(null);
-                      setLinkInstSuccess(null);
-                      setIsLinkToInstOpen(true);
-                    }}
+                    onClick={() => setIsAddNewInstModalOpen(true)}
                     className="btn btn-secondary btn-sm"
-                    style={{ fontWeight: 600, color: '#6366f1' }}
-                    title="Vincular o transferir tus secciones a una institución registrada"
+                    style={{ fontWeight: 600, color: '#06b6d4' }}
+                    title="Registrar otra institución educativa donde impartes clases"
                   >
-                    <Building2 size={15} color="#6366f1" /> Vincular a Institución
+                    <Building2 size={15} color="#06b6d4" /> + Registrar Institución
                   </button>
+                  {currentUser.role === 'DEVELOPER' && (
+                    <button
+                      onClick={() => {
+                        setLinkInstError(null);
+                        setLinkInstSuccess(null);
+                        setIsLinkToInstOpen(true);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontWeight: 600, color: '#6366f1' }}
+                      title="Herramienta exclusiva de Desarrollador: Vincular o transferir secciones a una institución registrada"
+                    >
+                      <Building2 size={15} color="#6366f1" /> Vincular a Institución (Dev)
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -871,11 +932,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span>
                   Mostrando <strong>{sectionsToDisplay.length}</strong> de <strong>{allTeacherSections.length}</strong> secciones
                 </span>
-                {(selectedGradeFilter !== 'ALL' || sectionSearchQuery) && (
+                {(selectedGradeFilter !== 'ALL' || selectedInstFilter !== 'ALL' || sectionSearchQuery) && (
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedGradeFilter('ALL');
+                      setSelectedInstFilter('ALL');
                       setSectionSearchQuery('');
                     }}
                     className="btn btn-ghost btn-sm"
@@ -886,6 +948,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Filtros por Institución si el docente imparte en más de una institución */}
+            {availableInstitutionsInSections.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingBottom: '10px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Building2 size={13} /> Institución:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInstFilter('ALL')}
+                  className={`btn btn-sm ${selectedInstFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.75rem', padding: '3px 12px', borderRadius: '16px' }}
+                >
+                  Todas ({allTeacherSections.length})
+                </button>
+                {availableInstitutionsInSections.map(inst => {
+                  const count = allTeacherSections.filter(g => g.institutionId === inst.id).length;
+                  const isSel = selectedInstFilter === inst.id;
+                  return (
+                    <button
+                      key={inst.id}
+                      type="button"
+                      onClick={() => setSelectedInstFilter(isSel ? 'ALL' : inst.id)}
+                      className={`btn btn-sm ${isSel ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ fontSize: '0.75rem', padding: '3px 12px', borderRadius: '16px' }}
+                    >
+                      {inst.name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Filtros de Grado / Nivel automáticos estilo Director */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1001,6 +1095,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         }}>
                           Sección {grp.sectionCode}
                         </span>
+                        {/* Badge de Institución si pertenece a un colegio/institución específico */}
+                        {(grp.institutionName || allInstitutions.find(i => i.id === grp.institutionId)?.name) && (
+                          <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Building2 size={12} />
+                            {grp.institutionName || allInstitutions.find(i => i.id === grp.institutionId)?.name}
+                          </span>
+                        )}
                         <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
                           Año {grp.year}
                         </span>
@@ -1605,6 +1706,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   className="input-field"
                   style={{ width: '100%', padding: '10px 14px' }}
                 />
+              </div>
+
+              {/* Selector de Institución para la Sección */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>
+                    Institución a la que pertenece esta sección *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddNewInstModalOpen(true)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#6366f1',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Plus size={13} /> + Registrar otra institución
+                  </button>
+                </div>
+                <select
+                  value={groupInstitutionId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setGroupInstitutionId(id);
+                    const found = allInstitutions.find(i => i.id === id);
+                    if (found) setGroupInstitutionName(found.name);
+                  }}
+                  className="input-field"
+                  style={{ width: '100%', padding: '10px 14px' }}
+                >
+                  {allInstitutions.map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name} {inst.code ? `(${inst.code})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -2504,6 +2648,109 @@ export const Dashboard: React.FC<DashboardProps> = ({
           evaluationConfigs={evaluationConfigs}
           onClose={() => setReportSectionGroup(null)}
         />
+      )}
+
+      {/* Modal: Registrar Nueva Institución (para Docentes con múltiples centros) */}
+      {isAddNewInstModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1200,
+          padding: '20px'
+        }} onClick={() => setIsAddNewInstModalOpen(false)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '460px',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Building2 size={20} color="#6366f1" />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
+                  Registrar Institución
+                </h3>
+              </div>
+              <button onClick={() => setIsAddNewInstModalOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Agrega el nombre del colegio, escuela o centro educativo donde también impartes lecciones para asociar tus secciones.
+            </p>
+
+            <form onSubmit={handleAddNewInstitution} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Nombre de la Institución *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. CTP Sabanilla, Liceo Los Ángeles, Tutorías Centro"
+                  value={newInstName}
+                  onChange={e => setNewInstName(e.target.value)}
+                  className="input-field"
+                  style={{ width: '100%', padding: '10px 14px' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Código (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. CTP-SAB"
+                    value={newInstCode}
+                    onChange={e => setNewInstCode(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Tipo de Centro
+                  </label>
+                  <select
+                    value={newInstType}
+                    onChange={e => setNewInstType(e.target.value as any)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px' }}
+                  >
+                    <option value="COLLEGE">Colegio / Liceo</option>
+                    <option value="SCHOOL">Escuela</option>
+                    <option value="UNIVERSITY">Universidad</option>
+                    <option value="INDEPENDENT">Independiente / Tutoría</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setIsAddNewInstModalOpen(false)} className="btn btn-secondary btn-sm">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Guardar Institución
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Modal: Vincular Secciones a Institución Formal (Transición) */}
