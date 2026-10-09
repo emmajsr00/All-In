@@ -23,7 +23,8 @@ import {
   X,
   AlertCircle,
   Check,
-  GraduationCap
+  GraduationCap,
+  UserCheck
 } from 'lucide-react';
 import type {
   User,
@@ -751,111 +752,172 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* MODAL 1: Crear Sección / Grupo (Docente Independiente) */}
       {isAddGroupOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddGroupOpen(false)}>
-          <div className="modal-content glass-panel" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
-                  <FolderPlus size={20} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Nueva Sección / Grupo</h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Crea un grupo para tus clases particulares</p>
-                </div>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setIsAddGroupOpen(false)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '520px',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={20} color="#4f46e5" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Crear Nueva Sección / Grupo</h3>
               </div>
-              <button onClick={() => setIsAddGroupOpen(false)} className="btn btn-icon">
+              <button onClick={() => setIsAddGroupOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
                 <X size={18} />
               </button>
             </div>
 
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Crea una sección o grupo para tus clases particulares o tutorías. Luego podrás matricular a tus alumnos y vincular tus materias para evaluar con la normativa MEP.
+            </p>
+
+            {groupError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '0.84rem'
+              }}>
+                {groupError}
+              </div>
+            )}
+
             <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Nivel / Grado
-                </label>
-                <select
-                  value={groupGrade}
-                  onChange={e => setGroupGrade(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%' }}
-                >
-                  <optgroup label="Secundaria">
-                    <option value="7">7° Año (Sétimo)</option>
-                    <option value="8">8° Año (Octavo)</option>
-                    <option value="9">9° Año (Noveno)</option>
-                    <option value="10">10° Año (Décimo)</option>
-                    <option value="11">11° Año (Undécimo)</option>
-                    <option value="12">12° Año (Duodécimo / Técnico)</option>
-                  </optgroup>
-                  <optgroup label="Primaria">
-                    <option value="1">1° Grado (Primer Grado)</option>
-                    <option value="2">2° Grado (Segundo Grado)</option>
-                    <option value="3">3° Grado (Tercer Grado)</option>
-                    <option value="4">4° Grado (Cuarto Grado)</option>
-                    <option value="5">5° Grado (Quinto Grado)</option>
-                    <option value="6">6° Grado (Sexto Grado)</option>
-                  </optgroup>
-                  <optgroup label="Otros">
-                    <option value="0">Tutoría / Curso Libre / Particular</option>
-                  </optgroup>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Nivel / Grado *
+                  </label>
+                  <select
+                    value={groupGrade}
+                    onChange={e => setGroupGrade(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px' }}
+                  >
+                    <optgroup label="Secundaria">
+                      <option value="7">7° Séptimo</option>
+                      <option value="8">8° Octavo</option>
+                      <option value="9">9° Noveno</option>
+                      <option value="10">10° Décimo</option>
+                      <option value="11">11° Undécimo</option>
+                      <option value="12">12° Duodécimo</option>
+                    </optgroup>
+                    <optgroup label="Primaria">
+                      <option value="1">1° Primero</option>
+                      <option value="2">2° Segundo</option>
+                      <option value="3">3° Tercero</option>
+                      <option value="4">4° Cuarto</option>
+                      <option value="5">5° Quinto</option>
+                      <option value="6">6° Sexto</option>
+                    </optgroup>
+                    <optgroup label="Otros">
+                      <option value="0">Tutoría / Preparatoria / Curso Libre</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Código de Sección *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej. 7-1, 10-A, Tutoría-01"
+                    value={groupSectionCode}
+                    onChange={e => setGroupSectionCode(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px' }}
+                  />
+                </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Código o Número de Sección <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: 7-1, 10-A, Tutoría-01, Grupo B"
-                  value={groupSectionCode}
-                  onChange={e => setGroupSectionCode(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%' }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
                   Nombre Descriptivo (Opcional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Grupo Avanzado, Taller Sabatino"
+                  placeholder="Ej. Grupo Avanzado, Tutoría Sabatina, Bachillerato MEP"
                   value={groupName}
                   onChange={e => setGroupName(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', padding: '10px 14px' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Especialidad / Modalidad (Opcional)
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Modalidad o Especialidad (Opcional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Académico, Técnico, Libre"
+                  placeholder="Ej. Académico, Técnico, Preparación Pruebas Nacionales"
                   value={groupSpecialty}
                   onChange={e => setGroupSpecialty(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', padding: '10px 14px' }}
                 />
               </div>
 
-              {groupError && (
-                <div style={{ color: '#ef4444', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertCircle size={14} /> {groupError}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Año Lectivo
+                  </label>
+                  <input
+                    type="number"
+                    value={2026}
+                    disabled
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px', opacity: 0.75 }}
+                  />
                 </div>
-              )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setIsAddGroupOpen(false)} className="btn btn-secondary">
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Docente Responsable
+                  </label>
+                  <input
+                    type="text"
+                    value={currentUser.name}
+                    disabled
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px', opacity: 0.75 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setIsAddGroupOpen(false)} className="btn btn-secondary btn-sm">
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} /> Crear Sección
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Crear Sección
                 </button>
               </div>
             </form>
@@ -865,96 +927,129 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* MODAL 2: Crear Materia (Docente Independiente) */}
       {isAddSubjectOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddSubjectOpen(false)}>
-          <div className="modal-content glass-panel" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
-                  <BookPlus size={20} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Nueva Materia / Asignatura</h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Materia que impartirás</p>
-                </div>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setIsAddSubjectOpen(false)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookOpen size={20} color="#0891b2" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Registrar Asignatura / Materia</h3>
               </div>
-              <button onClick={() => setIsAddSubjectOpen(false)} className="btn btn-icon">
+              <button onClick={() => setIsAddSubjectOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
                 <X size={18} />
               </button>
             </div>
 
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Registra la materia que impartirás. Estará disponible en tus secciones para evaluar y llevar control de asistencia por lecciones.
+            </p>
+
+            {subjectError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '0.84rem'
+              }}>
+                {subjectError}
+              </div>
+            )}
+
             <form onSubmit={handleCreateSubject} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Nombre de la Materia <span style={{ color: '#ef4444' }}>*</span>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Nombre de la Asignatura *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Español, Matemáticas, Robótica, Francés"
+                  required
+                  placeholder="Ej. Español, Matemáticas, Robótica, Francés..."
                   value={subjectName}
                   onChange={e => setSubjectName(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%' }}
-                  required
+                  style={{ width: '100%', padding: '10px 14px' }}
                 />
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Código Corto (Opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: ESP, MAT, ROB, FRA"
-                  value={subjectCode}
-                  onChange={e => setSubjectCode(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%' }}
-                  maxLength={6}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Color Distintivo
-                </label>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'].map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setSubjectColor(c)}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: c,
-                        border: subjectColor === c ? '3px solid white' : 'none',
-                        boxShadow: subjectColor === c ? '0 0 0 2px #4f46e5' : 'none',
-                        cursor: 'pointer'
-                      }}
-                    />
-                  ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Código Abreviado
+                  </label>
                   <input
-                    type="color"
-                    value={subjectColor}
-                    onChange={e => setSubjectColor(e.target.value)}
-                    style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
+                    type="text"
+                    placeholder="Ej. ESP, MAT, ROB"
+                    value={subjectCode}
+                    onChange={e => setSubjectCode(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', padding: '10px 14px' }}
+                    maxLength={6}
                   />
                 </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                    Color Distintivo
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {['#4f46e5', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed'].map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSubjectColor(c)}
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '6px',
+                          background: c,
+                          border: subjectColor === c ? '2px solid white' : 'none',
+                          boxShadow: subjectColor === c ? '0 0 0 2px #4f46e5' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={subjectColor}
+                      onChange={e => setSubjectColor(e.target.value)}
+                      style={{ width: '32px', height: '32px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: 'transparent' }}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {subjectError && (
-                <div style={{ color: '#ef4444', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertCircle size={14} /> {subjectError}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setIsAddSubjectOpen(false)} className="btn btn-secondary">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setIsAddSubjectOpen(false)} className="btn btn-secondary btn-sm">
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} /> Crear Materia
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Guardar Asignatura
                 </button>
               </div>
             </form>
@@ -964,27 +1059,64 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* MODAL 3: Asignar Materia a Sección (Docente Independiente) */}
       {isAssignSubjectOpen && (
-        <div className="modal-overlay" onClick={() => setIsAssignSubjectOpen(false)}>
-          <div className="modal-content glass-panel" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124, 58, 237, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed' }}>
-                  <PlusCircle size={20} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Vincular Materia a Sección</h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Habilita la evaluación y registro para este grupo</p>
-                </div>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setIsAssignSubjectOpen(false)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '500px',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserCheck size={20} color="#4f46e5" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Asignar Materia a Sección</h3>
               </div>
-              <button onClick={() => setIsAssignSubjectOpen(false)} className="btn btn-icon">
+              <button onClick={() => setIsAssignSubjectOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
                 <X size={18} />
               </button>
             </div>
 
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Vincula una materia con una sección. Habilitarás inmediatamente las tarjetas de evaluación con los rubros oficiales MEP y asistencia por lecciones.
+            </p>
+
+            {assignError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '0.84rem'
+              }}>
+                {assignError}
+              </div>
+            )}
+
             <form onSubmit={handleCreateAssignment} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Selecciona la Sección / Grupo <span style={{ color: '#ef4444' }}>*</span>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  1. Seleccionar Sección / Grupo *
                 </label>
                 {myGroups.length === 0 ? (
                   <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.85rem' }}>
@@ -995,10 +1127,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     value={assignGroupId}
                     onChange={e => setAssignGroupId(e.target.value)}
                     className="input-field"
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px' }}
                     required
                   >
-                    <option value="">-- Elige una sección --</option>
+                    <option value="">-- Elige la sección --</option>
                     {myGroups.map(g => (
                       <option key={g.id} value={g.id}>
                         {g.groupName || `Sección ${g.sectionCode}`} ({g.specialty || 'General'})
@@ -1009,8 +1141,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Selecciona la Materia <span style={{ color: '#ef4444' }}>*</span>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  2. Seleccionar Materia / Asignatura *
                 </label>
                 {mySubjects.length === 0 ? (
                   <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.85rem' }}>
@@ -1021,10 +1153,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     value={assignSubjectId}
                     onChange={e => setAssignSubjectId(e.target.value)}
                     className="input-field"
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '10px 14px' }}
                     required
                   >
-                    <option value="">-- Elige una materia --</option>
+                    <option value="">-- Elige la materia --</option>
                     {mySubjects.map(s => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.code})
@@ -1034,35 +1166,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <input
                   type="checkbox"
                   id="isGuiaIndep"
                   checked={isGuiaAssignment}
                   onChange={e => setIsGuiaAssignment(e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  style={{ width: '16px', height: '16px', accentColor: '#4f46e5' }}
                 />
-                <label htmlFor="isGuiaIndep" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>
-                  Soy el docente guía / tutor principal de esta sección
+                <label htmlFor="isGuiaIndep" style={{ fontSize: '0.84rem', cursor: 'pointer' }}>
+                  Asignar también como Profesor Guía / Tutor principal de esta sección
                 </label>
               </div>
 
-              {assignError && (
-                <div style={{ color: '#ef4444', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertCircle size={14} /> {assignError}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setIsAssignSubjectOpen(false)} className="btn btn-secondary">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setIsAssignSubjectOpen(false)} className="btn btn-secondary btn-sm">
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="btn btn-primary btn-sm"
                   disabled={myGroups.length === 0 || mySubjects.length === 0}
                 >
-                  <Check size={16} /> Vincular y Habilitar
+                  Confirmar Asignación
                 </button>
               </div>
             </form>
@@ -1072,32 +1198,55 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* MODAL 4: Matrícula y Alumnos por Sección (Docente Independiente) */}
       {isManageStudentsOpen && (
-        <div className="modal-overlay" onClick={() => setIsManageStudentsOpen(false)}>
-          <div className="modal-content glass-panel" style={{ maxWidth: '820px', width: '95%' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                  <Users size={22} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Matrícula y Alumnos por Sección</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Agrega estudiantes o importa tu lista desde Excel para tus grupos</p>
-                </div>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setIsManageStudentsOpen(false)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '840px',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={20} color="#10b981" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Nómina Oficial de Estudiantes y Matrícula</h3>
               </div>
-              <button onClick={() => setIsManageStudentsOpen(false)} className="btn btn-icon">
-                <X size={20} />
+              <button onClick={() => setIsManageStudentsOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
+                <X size={18} />
               </button>
             </div>
 
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Gestiona los estudiantes inscritos en tus secciones particulares. Agrega alumnos individuales con consulta TSE o importa listas de Excel.
+            </p>
+
             {/* Selector de Grupo */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', background: 'var(--bg-surface)', padding: '14px 18px', borderRadius: '12px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', background: 'var(--bg-surface)', padding: '14px 18px', borderRadius: '12px', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '220px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Sección activa:</span>
+                <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Sección activa:</span>
                 <select
                   value={studentManagingGroupId}
                   onChange={e => setStudentManagingGroupId(e.target.value)}
                   className="input-field"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, padding: '8px 12px' }}
                 >
                   {myGroups.map(g => (
                     <option key={g.id} value={g.id}>
@@ -1111,10 +1260,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => setIsAddStudentModalOpen(true)}
-                    className="btn btn-secondary btn-sm"
+                    className="btn btn-primary btn-sm"
                   >
-                    <UserPlus size={15} color="#4f46e5" />
-                    + Agregar Alumno
+                    <UserPlus size={15} />
+                    + Agregar Alumno (TSE)
                   </button>
                   <button
                     onClick={() => setIsImportStudentsModalOpen(true)}
@@ -1192,8 +1341,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-              <button onClick={() => setIsManageStudentsOpen(false)} className="btn btn-secondary">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button onClick={() => setIsManageStudentsOpen(false)} className="btn btn-secondary btn-sm">
                 Cerrar
               </button>
             </div>
