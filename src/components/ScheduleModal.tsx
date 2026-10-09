@@ -15,7 +15,8 @@ import {
   GripVertical,
   Info,
   Check,
-  AlertCircle
+  AlertCircle,
+  Search
 } from 'lucide-react';
 import type { ScheduleItem, Group, Subject, TeacherAssignment } from '../types';
 import { db } from '../db';
@@ -99,6 +100,37 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   // Secciones y materias únicas de este docente
   const myGroupIds = Array.from(new Set(assignments.map(a => a.groupId)));
   const myGroups = groups.filter(g => myGroupIds.includes(g.id));
+
+  // Buscador y filtros de Grupo / Sección interactivos en el Horario
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [sectionGradeFilter, setSectionGradeFilter] = useState<'ALL' | number>('ALL');
+  const [paletteSectionSearch, setPaletteSectionSearch] = useState('');
+
+  const availableScheduleGrades = Array.from(new Set(myGroups.map(g => g.grade))).sort((a, b) => a - b);
+
+  const getGradeShortLabel = (grade: number) => {
+    switch (grade) {
+      case 7: return '7°';
+      case 8: return '8°';
+      case 9: return '9°';
+      case 10: return '10°';
+      case 11: return '11°';
+      case 12: return '12°';
+      default: return `${grade}°`;
+    }
+  };
+
+  const filteredMyGroups = myGroups.filter(g => {
+    if (sectionGradeFilter !== 'ALL' && g.grade !== sectionGradeFilter) return false;
+    if (sectionSearchQuery.trim()) {
+      const q = sectionSearchQuery.toLowerCase().trim();
+      const codeMatch = g.sectionCode.toLowerCase().includes(q);
+      const nameMatch = (g.groupName || '').toLowerCase().includes(q);
+      const gradeMatch = g.grade.toString() === q;
+      return codeMatch || nameMatch || gradeMatch;
+    }
+    return true;
+  });
 
   const mySubjectIds = Array.from(new Set(assignments.map(a => a.subjectId)));
   const mySubjects = subjects.filter(s => mySubjectIds.includes(s.id));
@@ -264,9 +296,60 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 Filtrar Horario:
               </span>
 
-              {/* Selector de Sección */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Users size={14} color="#6366f1" />
+              {/* Selector de Sección con Buscador Interactivo */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={14} color="#4f46e5" />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Sección:</span>
+                </div>
+
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={13} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    value={sectionSearchQuery}
+                    onChange={(e) => {
+                      setSectionSearchQuery(e.target.value);
+                      const q = e.target.value.toLowerCase().trim();
+                      const match = myGroups.find(g =>
+                        g.sectionCode.toLowerCase().includes(q) || (g.groupName || '').toLowerCase().includes(q)
+                      );
+                      if (match) setHighlightGroupId(match.id);
+                    }}
+                    placeholder="Buscar sección (ej: 7-1)..."
+                    style={{
+                      paddingLeft: '26px',
+                      paddingRight: sectionSearchQuery ? '24px' : '8px',
+                      paddingTop: '5px',
+                      paddingBottom: '5px',
+                      fontSize: '0.78rem',
+                      width: '160px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-main)',
+                      fontWeight: 600
+                    }}
+                  />
+                  {sectionSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSectionSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '2px'
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
                 <select
                   value={highlightGroupId}
                   onChange={(e) => setHighlightGroupId(e.target.value)}
@@ -281,7 +364,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   }}
                 >
                   <option value="ALL">Todas las Secciones ({myGroups.length})</option>
-                  {myGroups.map(g => (
+                  {filteredMyGroups.map(g => (
                     <option key={g.id} value={g.id}>
                       Sección {g.sectionCode} {g.groupName ? `(${g.groupName})` : ''}
                     </option>
@@ -362,21 +445,50 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </div>
           </div>
 
-          {/* Píldoras rápidas de acceso a secciones en el Horario */}
+          {/* Píldoras rápidas de acceso a secciones y filtro por nivel en el Horario */}
           {myGroups.length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingTop: '4px', borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingTop: '6px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: '4px' }}>
-                Sección:
+                Filtro rápido:
               </span>
               <button
                 type="button"
-                onClick={() => setHighlightGroupId('ALL')}
-                className={`btn btn-sm ${highlightGroupId === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => {
+                  setSectionGradeFilter('ALL');
+                  setHighlightGroupId('ALL');
+                }}
+                className={`btn btn-sm ${sectionGradeFilter === 'ALL' && highlightGroupId === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap' }}
               >
                 Todas ({myGroups.length})
               </button>
-              {myGroups.map(g => (
+
+              {availableScheduleGrades.length > 1 && availableScheduleGrades.map(grd => {
+                const count = myGroups.filter(g => g.grade === grd).length;
+                const isSelected = sectionGradeFilter === grd;
+                return (
+                  <button
+                    key={`grd-${grd}`}
+                    type="button"
+                    onClick={() => {
+                      const next = isSelected ? 'ALL' : grd;
+                      setSectionGradeFilter(next);
+                      if (next !== 'ALL') {
+                        const first = myGroups.find(g => g.grade === grd);
+                        if (first) setHighlightGroupId(first.id);
+                      }
+                    }}
+                    className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                  >
+                    Nivel {getGradeShortLabel(grd)} ({count})
+                  </button>
+                );
+              })}
+
+              <div style={{ width: '1px', height: '14px', background: 'var(--border-subtle)', margin: '0 4px' }} />
+
+              {filteredMyGroups.map(g => (
                 <button
                   key={g.id}
                   type="button"
@@ -453,11 +565,36 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             {/* CASO 1: ORGANIZAR POR SECCIÓN (Eliges Sección -> Arrastras Materias) */}
             {paletteMode === 'by-group' && (
               <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
-                  1. Selecciona Sección a Programar:
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                    1. Selecciona Sección a Programar:
+                  </label>
+                  {myGroups.length > 3 && (
+                    <input
+                      type="text"
+                      value={paletteSectionSearch}
+                      onChange={(e) => setPaletteSectionSearch(e.target.value)}
+                      placeholder="Filtrar..."
+                      style={{
+                        fontSize: '0.72rem',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-main)',
+                        color: 'var(--text-main)',
+                        width: '95px'
+                      }}
+                    />
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto' }}>
-                  {myGroups.map(grp => {
+                  {myGroups
+                    .filter(grp => {
+                      if (!paletteSectionSearch.trim()) return true;
+                      const q = paletteSectionSearch.toLowerCase().trim();
+                      return grp.sectionCode.toLowerCase().includes(q) || (grp.groupName || '').toLowerCase().includes(q);
+                    })
+                    .map(grp => {
                     const isGrpActive = activePaletteGroup?.id === grp.id;
                     const countForGrp = assignments.filter(a => a.groupId === grp.id && a.teacherId === teacherId).length;
                     return (
