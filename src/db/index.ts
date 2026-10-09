@@ -83,6 +83,109 @@ export async function seedDatabaseIfEmpty() {
       }
     }
 
+    // Asegurar existencia de la institución independiente
+    const indepInst = await db.institutions.get('inst-indep-01');
+    if (!indepInst) {
+      await db.institutions.add({
+        id: 'inst-indep-01',
+        name: 'Espacio Docente Independiente',
+        code: 'INDEP-001',
+        type: 'INDEPENDENT',
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    // Asegurar existencia del usuario Docente Independiente
+    const indepUser = await db.users.where('email').equals('marcos.tutor@gmail.com').first();
+    if (!indepUser) {
+      await db.users.add({
+        id: 'user-marcos-indep',
+        name: 'Prof. Marcos Varela Q.',
+        email: 'marcos.tutor@gmail.com',
+        password: '123',
+        role: 'TEACHER',
+        institutionId: 'inst-indep-01',
+        title: 'Docente y Tutor Particular'
+      });
+    }
+
+    // Asegurar grupo independiente
+    const indepGroup = await db.groups.get('grp-tutor-a');
+    if (!indepGroup) {
+      await db.groups.add({
+        id: 'grp-tutor-a',
+        institutionId: 'inst-indep-01',
+        grade: 10,
+        sectionCode: 'Bachillerato Intensivo',
+        groupName: 'Tutoría Grupal Sábados',
+        specialty: 'Preparación MEP',
+        year: 2026,
+        guideTeacherId: 'user-marcos-indep'
+      });
+    }
+
+    // Asegurar materia independiente
+    const indepSubject = await db.subjects.get('sub-math-tutoring');
+    if (!indepSubject) {
+      await db.subjects.add({
+        id: 'sub-math-tutoring',
+        institutionId: 'inst-indep-01',
+        name: 'Matemática y Lógica Preparatoria',
+        code: 'MAT-PREP',
+        color: '#059669',
+        teacherId: 'user-marcos-indep'
+      });
+    }
+
+    // Asegurar asignación independiente
+    const indepAsg = await db.assignments.get('asg-marcos-indep');
+    if (!indepAsg) {
+      await db.assignments.add({
+        id: 'asg-marcos-indep',
+        teacherId: 'user-marcos-indep',
+        groupId: 'grp-tutor-a',
+        subjectId: 'sub-math-tutoring',
+        isGuia: true
+      });
+    }
+
+    // Asegurar configuración de evaluación para Marcos
+    const indepCfg = await db.evaluationConfigs.get('cfg-asg-marcos-indep');
+    if (!indepCfg) {
+      await db.evaluationConfigs.add({
+        id: 'cfg-asg-marcos-indep',
+        assignmentId: 'asg-marcos-indep',
+        periodId: 'I_PERIODO',
+        passingGrade: 70,
+        periodWeight: 50,
+        rubrics: [
+          { id: 'r-1', key: 'asistencia', label: 'Asistencia', enabled: true, percentage: 5, description: 'Asistencia y puntualidad' },
+          { id: 'r-2', key: 'cotidiano', label: 'Trabajo Cotidiano', enabled: true, percentage: 25, description: 'Desempeño diario en clase' },
+          { id: 'r-3', key: 'tareas', label: 'Tareas', enabled: true, percentage: 10, description: 'Trabajos extraclase' },
+          { id: 'r-4', key: 'evaluaciones', label: 'Evaluaciones / Pruebas', enabled: true, percentage: 45, description: 'Pruebas escritas o prácticas' },
+          { id: 'r-5', key: 'proyecto', label: 'Proyecto', enabled: false, percentage: 15, description: 'Proyecto de aula' },
+          { id: 'r-6', key: 'portafolio', label: 'Portafolio', enabled: false, percentage: 10, description: 'Portafolio de evidencias' }
+        ],
+        taskDefinitions: [],
+        examDefinitions: [],
+        projectDefinitions: [],
+        periods: [
+          { periodId: 'I_PERIODO', name: 'I Periodo', startDate: '2026-02-09', endDate: '2026-06-26', weightPercentage: 50 },
+          { periodId: 'II_PERIODO', name: 'II Periodo', startDate: '2026-07-13', endDate: '2026-12-11', weightPercentage: 50 }
+        ]
+      });
+    }
+
+    // Asegurar estudiantes de prueba para grp-tutor-a
+    const indepStudentsCount = await db.students.where('groupId').equals('grp-tutor-a').count();
+    if (indepStudentsCount === 0) {
+      await db.students.bulkAdd([
+        { id: 'std-indep-01', groupId: 'grp-tutor-a', idNumber: '118540932', firstLastName: 'Alvarado', secondLastName: 'Solano', firstName: 'Sofía Elena', accommodation: 'NONE' },
+        { id: 'std-indep-02', groupId: 'grp-tutor-a', idNumber: '119230485', firstLastName: 'Castillo', secondLastName: 'Navarro', firstName: 'Matías José', accommodation: 'NONE' },
+        { id: 'std-indep-03', groupId: 'grp-tutor-a', idNumber: '117890321', firstLastName: 'Vargas', secondLastName: 'Chinchilla', firstName: 'Valeria', accommodation: 'NON_SIGNIFICANT' }
+      ]);
+    }
+
     // Migración ligera: asegurar que existan los periodos y datos de prueba de II periodo
     const configs = await db.evaluationConfigs.toArray();
     for (const c of configs) {

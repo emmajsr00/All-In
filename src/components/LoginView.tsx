@@ -387,7 +387,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#4f46e5' }}>Entrar →</span>
           </button>
 
-          {/* Acceso Docente */}
+          {/* Acceso Docente Institucional */}
           <button
             type="button"
             onClick={() => handleQuickLogin('hrodriguez@mep.go.cr', '123')}
@@ -408,11 +408,44 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <UserCheck size={16} color="#059669" />
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 800 }}>Docente</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Prof. Hellen Rodríguez • Inglés</div>
+                <div style={{ fontWeight: 800 }}>Docente Institucional</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Prof. Hellen Rodríguez • CTP Poás</div>
               </div>
             </div>
             <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#059669' }}>Entrar →</span>
+          </button>
+
+          {/* Acceso Docente Independiente (Sin institución) */}
+          <button
+            type="button"
+            onClick={() => handleQuickLogin('marcos.tutor@gmail.com', '123')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              background: 'rgba(14, 165, 233, 0.08)',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <GraduationCap size={16} color="#0284c7" />
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Docente Independiente</span>
+                  <span style={{ fontSize: '0.68rem', background: '#0284c7', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                    Sin Institución
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Prof. Marcos Varela • Tutoría y Clases Particulares</div>
+              </div>
+            </div>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0284c7' }}>Entrar →</span>
           </button>
         </div>
 
