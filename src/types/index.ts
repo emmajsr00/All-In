@@ -31,6 +31,10 @@ export interface User {
   avatarUrl?: string;
   idNumber?: string; // Cédula o número de identificación
   phone?: string;
+  // Contacto de Emergencia
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
   // Gestión de Membresías y Licencias
   membershipStatus?: MembershipStatus;
   membershipPlan?: MembershipPlan;
