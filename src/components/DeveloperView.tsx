@@ -23,7 +23,10 @@ import {
   Phone,
   Clock,
   Layers,
-  Filter
+  Filter,
+  UploadCloud,
+  CreditCard,
+  ExternalLink
 } from 'lucide-react';
 import type { Institution, User, Group, Student, UserRole, InstitutionType, MembershipPlan, MembershipStatus } from '../types';
 import { db } from '../db';
@@ -46,7 +49,25 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
   onSelectInstitution,
   onDataChanged
 }) => {
-  const [activeTab, setActiveTab] = useState<'INSTITUTIONS' | 'USERS'>('INSTITUTIONS');
+  const [activeTab, setActiveTab] = useState<'INSTITUTIONS' | 'USERS' | 'MEMBERSHIPS'>('INSTITUTIONS');
+  const [directInstitutionId, setDirectInstitutionId] = useState<string>(allInstitutions[0]?.id || '');
+
+  // Helper para leer archivos de imagen a Base64
+  const handleImageFileRead = (e: React.ChangeEvent<HTMLInputElement>, onResult: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('La imagen no debe superar los 2MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (typeof event.target?.result === 'string') {
+        onResult(event.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Modales
   const [isAddInstitutionOpen, setIsAddInstitutionOpen] = useState(false);
@@ -69,6 +90,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
   const [userTitle, setUserTitle] = useState('');
   const [userIdNumber, setUserIdNumber] = useState('');
   const [userPhone, setUserPhone] = useState('');
+  const [userAvatarUrl, setUserAvatarUrl] = useState('');
   const [isQueryingAddCedula, setIsQueryingAddCedula] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
 
@@ -183,6 +205,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
       title: userTitle.trim() || undefined,
       idNumber: userIdNumber.trim() || undefined,
       phone: userPhone.trim() || undefined,
+      avatarUrl: userAvatarUrl.trim() || undefined,
       membershipStatus: 'ACTIVE',
       membershipPlan: 'ANNUAL',
       membershipExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -196,6 +219,7 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
     setUserTitle('');
     setUserIdNumber('');
     setUserPhone('');
+    setUserAvatarUrl('');
     onDataChanged();
   };
 
@@ -223,7 +247,8 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
       title: editingUser.title?.trim() || undefined,
       password: editingUser.password || '123',
       idNumber: editingUser.idNumber?.trim() || undefined,
-      phone: editingUser.phone?.trim() || undefined
+      phone: editingUser.phone?.trim() || undefined,
+      avatarUrl: editingUser.avatarUrl?.trim() || undefined
     });
 
     setEditingUser(null);
@@ -262,6 +287,23 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
     const d = new Date();
     d.setDate(d.getDate() + days);
     setMExpiresAt(d.toISOString().split('T')[0]);
+  };
+
+  // Estados para la pestaña de Control de Membresías
+  const [membershipStatusFilter, setMembershipStatusFilter] = useState<'ALL' | 'ACTIVE' | 'TRIAL' | 'EXPIRED' | 'INACTIVE'>('ALL');
+  const [membershipSearch, setMembershipSearch] = useState('');
+
+  const handleQuickRenew = async (user: User, days: number) => {
+    const currentExp = user.membershipExpiresAt ? new Date(user.membershipExpiresAt) : new Date();
+    const baseDate = currentExp > new Date() ? currentExp : new Date();
+    baseDate.setDate(baseDate.getDate() + days);
+    const newExpDate = baseDate.toISOString().split('T')[0];
+
+    await db.users.update(user.id, {
+      membershipStatus: 'ACTIVE',
+      membershipExpiresAt: newExpDate
+    });
+    onDataChanged();
   };
 
   // Filtrado reactivo de usuarios
@@ -350,24 +392,133 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
         </div>
       </div>
 
-      {/* Selector de Pestañas */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-        <button
-          onClick={() => setActiveTab('INSTITUTIONS')}
-          className={`btn ${activeTab === 'INSTITUTIONS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-        >
-          <Building2 size={16} />
-          <span>Instituciones Registradas ({allInstitutions.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('USERS')}
-          className={`btn ${activeTab === 'USERS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-        >
-          <Users size={16} />
-          <span>Usuarios y Gestión de Membresías ({allUsers.length})</span>
-        </button>
+      {/* Submenú de Navegación del Desarrollador */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid var(--border-subtle)',
+        paddingBottom: '14px'
+      }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setActiveTab('INSTITUTIONS')}
+            className={`btn ${activeTab === 'INSTITUTIONS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 800,
+              padding: '8px 14px',
+              borderRadius: '10px'
+            }}
+          >
+            <Building2 size={16} />
+            <span>Instituciones Educativas</span>
+            <span style={{
+              background: activeTab === 'INSTITUTIONS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
+              padding: '2px 7px',
+              borderRadius: '12px',
+              fontSize: '0.72rem'
+            }}>
+              {allInstitutions.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('USERS')}
+            className={`btn ${activeTab === 'USERS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 800,
+              padding: '8px 14px',
+              borderRadius: '10px'
+            }}
+          >
+            <Users size={16} />
+            <span>Personal & Usuarios</span>
+            <span style={{
+              background: activeTab === 'USERS' ? 'rgba(255,255,255,0.25)' : 'var(--bg-surface)',
+              padding: '2px 7px',
+              borderRadius: '12px',
+              fontSize: '0.72rem'
+            }}>
+              {allUsers.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('MEMBERSHIPS')}
+            className={`btn ${activeTab === 'MEMBERSHIPS' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 800,
+              padding: '8px 14px',
+              borderRadius: '10px'
+            }}
+          >
+            <ShieldCheck size={16} />
+            <span>Control de Membresías</span>
+            <span style={{
+              background: activeTab === 'MEMBERSHIPS' ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.15)',
+              color: activeTab === 'MEMBERSHIPS' ? 'white' : '#059669',
+              padding: '2px 7px',
+              borderRadius: '12px',
+              fontSize: '0.72rem',
+              fontWeight: 800
+            }}>
+              {allUsers.filter(u => u.membershipStatus === 'ACTIVE' || !u.membershipStatus).length} Activas
+            </span>
+          </button>
+        </div>
+
+        {/* Acceso Rápido para Administrar Institución en Vivo */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'var(--bg-surface)',
+          padding: '4px 8px 4px 12px',
+          borderRadius: '12px',
+          border: '1px solid var(--border-subtle)'
+        }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+            Administrar Institución:
+          </span>
+          <select
+            value={directInstitutionId}
+            onChange={e => setDirectInstitutionId(e.target.value)}
+            className="input-field"
+            style={{ padding: '6px 10px', fontSize: '0.78rem', fontWeight: 600, minWidth: '170px' }}
+          >
+            {allInstitutions.map(inst => (
+              <option key={inst.id} value={inst.id}>{inst.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onSelectInstitution(directInstitutionId)}
+            className="btn btn-primary btn-sm"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.78rem',
+              padding: '6px 12px',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+            }}
+            title="Entrar a administrar esta institución en vivo"
+          >
+            <span>Acceder</span>
+            <ExternalLink size={13} />
+          </button>
+        </div>
       </div>
 
       {/* PESTAÑA 1: INSTITUCIONES */}
@@ -658,8 +809,33 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '12px 14px' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{u.name}</div>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{u.title || 'Funcionario'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.85rem',
+                            overflow: 'hidden',
+                            border: '2px solid rgba(124, 58, 237, 0.25)',
+                            flexShrink: 0
+                          }}>
+                            {u.avatarUrl ? (
+                              <img src={u.avatarUrl} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              u.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{u.name}</div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{u.title || 'Funcionario'}</div>
+                          </div>
+                        </div>
                       </td>
                       <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                         <div>{u.idNumber || '—'}</div>
@@ -743,6 +919,258 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* PESTAÑA 3: CONTROL DE MEMBRESÍAS Y LICENCIAS */}
+      {activeTab === 'MEMBERSHIPS' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Tarjetas KPI de Membresías */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Licencias Activas</span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span>
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#059669', marginTop: '6px' }}>
+                {allUsers.filter(u => u.membershipStatus === 'ACTIVE' || !u.membershipStatus).length}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Acceso total habilitado</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>En Prueba (Trial)</span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6' }}></span>
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2563eb', marginTop: '6px' }}>
+                {allUsers.filter(u => u.membershipStatus === 'TRIAL').length}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Período promocional</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Licencias Vencidas</span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></span>
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#dc2626', marginTop: '6px' }}>
+                {allUsers.filter(u => u.membershipStatus === 'EXPIRED').length}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Requieren renovación de pago</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Planes Vitalicios</span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7c3aed' }}></span>
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#7c3aed', marginTop: '6px' }}>
+                {allUsers.filter(u => u.membershipPlan === 'LIFETIME').length}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Sin fecha de vencimiento</div>
+            </div>
+          </div>
+
+          {/* Filtros de la Tabla de Membresías */}
+          <div className="glass-panel" style={{
+            padding: '20px',
+            borderRadius: '16px',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
+                  Gestión y Renovación de Licencias
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Monitorea las membresías de los docentes independientes y centros educativos; extiende fechas en 1 clic.
+                </p>
+              </div>
+
+              {/* Botones de Filtro Rápido por Estado */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {(['ALL', 'ACTIVE', 'TRIAL', 'EXPIRED'] as const).map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setMembershipStatusFilter(st)}
+                    className={`btn ${membershipStatusFilter === st ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                    style={{ fontSize: '0.76rem', fontWeight: 700, padding: '5px 12px' }}
+                  >
+                    {st === 'ALL' ? 'Todos los Estados' : st === 'ACTIVE' ? '🟢 Activas' : st === 'TRIAL' ? '🔵 En Prueba' : '🔴 Vencidas'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Buscador de Membresías */}
+            <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+              <Search size={16} color="#7c3aed" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Filtrar por usuario, cédula o correo..."
+                value={membershipSearch}
+                onChange={e => setMembershipSearch(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', padding: '8px 12px 8px 36px', fontSize: '0.82rem' }}
+              />
+              {membershipSearch && (
+                <button
+                  type="button"
+                  onClick={() => setMembershipSearch('')}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Tabla de Membresías */}
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border-subtle)', background: 'var(--bg-surface)', textAlign: 'left' }}>
+                    <th style={{ padding: '12px 14px' }}>Usuario</th>
+                    <th style={{ padding: '12px 14px' }}>Institución / Tipo</th>
+                    <th style={{ padding: '12px 14px' }}>Plan</th>
+                    <th style={{ padding: '12px 14px' }}>Estado</th>
+                    <th style={{ padding: '12px 14px' }}>Fecha de Vencimiento</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Renovación Rápida & Gestión</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allUsers
+                    .filter(u => {
+                      const st = u.membershipStatus || 'ACTIVE';
+                      if (membershipStatusFilter !== 'ALL' && st !== membershipStatusFilter) return false;
+                      if (membershipSearch.trim()) {
+                        const q = membershipSearch.toLowerCase().trim();
+                        return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.idNumber && u.idNumber.toLowerCase().includes(q));
+                      }
+                      return true;
+                    })
+                    .map(u => {
+                      const inst = allInstitutions.find(i => i.id === u.institutionId);
+                      const plan = u.membershipPlan || 'ANNUAL';
+                      const st = u.membershipStatus || 'ACTIVE';
+                      const isExpired = st === 'EXPIRED';
+
+                      return (
+                        <tr key={u.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 800,
+                                fontSize: '0.85rem',
+                                overflow: 'hidden',
+                                border: '2px solid rgba(124, 58, 237, 0.25)',
+                                flexShrink: 0
+                              }}>
+                                {u.avatarUrl ? (
+                                  <img src={u.avatarUrl} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  u.name.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{u.name}</div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{u.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            {u.institutionId === 'inst-indep-01' ? (
+                              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontWeight: 700 }}>
+                                Docente Independiente
+                              </span>
+                            ) : inst ? (
+                              <span>{inst.name}</span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>Global</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span className="badge" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', fontWeight: 700 }}>
+                              {plan === 'LIFETIME' ? '👑 Vitalicia' : plan === 'ANNUAL' ? '📅 Anual' : plan === 'MONTHLY' ? '🗓️ Mensual' : '🎁 Gratuita'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span className="badge" style={{
+                              background: st === 'ACTIVE' ? 'rgba(16, 185, 129, 0.15)' : st === 'TRIAL' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                              color: st === 'ACTIVE' ? '#059669' : st === 'TRIAL' ? '#2563eb' : '#dc2626',
+                              fontWeight: 800
+                            }}>
+                              ● {st === 'ACTIVE' ? 'Activa' : st === 'TRIAL' ? 'En Prueba' : st === 'EXPIRED' ? 'Vencida' : 'Inactiva'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            {plan === 'LIFETIME' ? (
+                              <span style={{ color: '#7c3aed', fontWeight: 700, fontSize: '0.8rem' }}>Ilimitada (Sin Vencimiento)</span>
+                            ) : (
+                              <span style={{ fontFamily: 'monospace', fontWeight: 700, color: isExpired ? '#dc2626' : 'var(--text-main)' }}>
+                                {u.membershipExpiresAt || 'No definida'}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                              {plan !== 'LIFETIME' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickRenew(u, 30)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                                    title="Extender 30 días a partir de hoy o fecha actual"
+                                  >
+                                    +30d
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickRenew(u, 365)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                                    title="Extender 1 año"
+                                  >
+                                    +1 año
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenMembershipModal(u)}
+                                className="btn btn-primary btn-sm"
+                                style={{
+                                  fontSize: '0.74rem',
+                                  padding: '4px 10px',
+                                  fontWeight: 700,
+                                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
+                                }}
+                              >
+                                <Sparkles size={12} />
+                                <span>Gestionar</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1025,6 +1453,65 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                 </div>
               </div>
 
+              {/* Foto de Perfil / Avatar */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Foto de Perfil (Opcional)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-surface)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    overflow: 'hidden',
+                    border: '2px solid rgba(124, 58, 237, 0.3)',
+                    flexShrink: 0
+                  }}>
+                    {editingUser.avatarUrl ? (
+                      <img src={editingUser.avatarUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      editingUser.name ? editingUser.name.charAt(0).toUpperCase() : <Users size={18} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="URL de foto o subir archivo..."
+                        value={editingUser.avatarUrl || ''}
+                        onChange={e => setEditingUser({ ...editingUser, avatarUrl: e.target.value })}
+                        className="input-field"
+                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                      />
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
+                        <UploadCloud size={14} color="#7c3aed" />
+                        <span>Subir</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={e => handleImageFileRead(e, (url) => setEditingUser({ ...editingUser, avatarUrl: url }))}
+                        />
+                      </label>
+                    </div>
+                    {editingUser.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingUser({ ...editingUser, avatarUrl: undefined })}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                      >
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setEditingUser(null)} className="btn btn-secondary">
                   Cancelar
@@ -1092,16 +1579,28 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     <Building2 size={24} color="#7c3aed" />
                   )}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>URL del Logotipo / Foto:</label>
-                  <input
-                    type="url"
-                    value={editingInstitution.logoUrl || ''}
-                    onChange={e => setEditingInstitution({ ...editingInstitution, logoUrl: e.target.value })}
-                    placeholder="https://ejemplo.com/logo.png"
-                    className="input-field"
-                    style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem' }}
-                  />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '2px' }}>Logotipo o Escudo Institucional:</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="url"
+                      value={editingInstitution.logoUrl || ''}
+                      onChange={e => setEditingInstitution({ ...editingInstitution, logoUrl: e.target.value })}
+                      placeholder="https://ejemplo.com/logo.png o subir..."
+                      className="input-field"
+                      style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                    />
+                    <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
+                      <UploadCloud size={14} color="#7c3aed" />
+                      <span>Subir</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => handleImageFileRead(e, (url) => setEditingInstitution({ ...editingInstitution, logoUrl: url }))}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1226,15 +1725,27 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>URL del Logo o Fotografía:</label>
-                <input
-                  type="url"
-                  value={instLogoUrl}
-                  onChange={(e) => setInstLogoUrl(e.target.value)}
-                  placeholder="https://ejemplo.com/logo.png"
-                  className="input-field"
-                  style={{ width: '100%', padding: '9px 12px' }}
-                />
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Logotipo o Escudo Institucional:</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="url"
+                    value={instLogoUrl}
+                    onChange={(e) => setInstLogoUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/logo.png o subir..."
+                    className="input-field"
+                    style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                  />
+                  <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
+                    <UploadCloud size={14} color="#7c3aed" />
+                    <span>Subir</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={e => handleImageFileRead(e, setInstLogoUrl)}
+                    />
+                  </label>
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1466,6 +1977,65 @@ export const DeveloperView: React.FC<DeveloperViewProps> = ({
                     className="input-field"
                     style={{ width: '100%', padding: '9px 12px' }}
                   />
+                </div>
+              </div>
+
+              {/* Foto de Perfil / Avatar */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>Foto de Perfil (Opcional)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-surface)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    overflow: 'hidden',
+                    border: '2px solid rgba(124, 58, 237, 0.3)',
+                    flexShrink: 0
+                  }}>
+                    {userAvatarUrl ? (
+                      <img src={userAvatarUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      userName ? userName.charAt(0).toUpperCase() : <Users size={18} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="URL de foto o subir archivo..."
+                        value={userAvatarUrl}
+                        onChange={e => setUserAvatarUrl(e.target.value)}
+                        className="input-field"
+                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                      />
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
+                        <UploadCloud size={14} color="#7c3aed" />
+                        <span>Subir</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={e => handleImageFileRead(e, setUserAvatarUrl)}
+                        />
+                      </label>
+                    </div>
+                    {userAvatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setUserAvatarUrl('')}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                      >
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

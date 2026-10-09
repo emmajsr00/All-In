@@ -376,9 +376,18 @@ export const Header: React.FC<HeaderProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
-              fontSize: '0.85rem'
+              fontSize: '0.85rem',
+              overflow: 'hidden'
             }}>
-              {currentUser.name.charAt(0).toUpperCase()}
+              {currentUser.avatarUrl ? (
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                currentUser.name.charAt(0).toUpperCase()
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.82rem', fontWeight: 700, lineHeight: 1.2 }}>

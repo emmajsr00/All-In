@@ -250,8 +250,26 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
   const [staffTitle, setStaffTitle] = useState('');
   const [staffIdNumber, setStaffIdNumber] = useState('');
   const [staffPhone, setStaffPhone] = useState('');
+  const [staffAvatarUrl, setStaffAvatarUrl] = useState('');
   const [isQueryingStaffCedula, setIsQueryingStaffCedula] = useState(false);
   const [staffError, setStaffError] = useState<string | null>(null);
+
+  // Helper para leer archivos de imagen (fotos / logos) a Base64
+  const handleImageFileRead = (e: React.ChangeEvent<HTMLInputElement>, onResult: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('La imagen no debe superar los 2MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (typeof event.target?.result === 'string') {
+        onResult(event.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Modal Editar Personal
   const [editingStaffUser, setEditingStaffUser] = useState<User | null>(null);
@@ -614,6 +632,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
       institutionId: institutionId,
       idNumber: staffIdNumber.trim() || undefined,
       phone: staffPhone.trim() || undefined,
+      avatarUrl: staffAvatarUrl.trim() || undefined,
       title: staffTitle.trim() || (staffRole === 'DIRECTOR' ? 'Director(a)' : staffRole === 'ADMIN' ? 'Administrativo' : 'Docente'),
       membershipStatus: 'ACTIVE',
       membershipPlan: 'ANNUAL'
@@ -627,6 +646,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
     setStaffTitle('');
     setStaffIdNumber('');
     setStaffPhone('');
+    setStaffAvatarUrl('');
     if (onDataChanged) onDataChanged();
   };
 
@@ -654,7 +674,8 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
       title: editingStaffUser.title?.trim() || undefined,
       password: editingStaffUser.password || '123',
       idNumber: editingStaffUser.idNumber?.trim() || undefined,
-      phone: editingStaffUser.phone?.trim() || undefined
+      phone: editingStaffUser.phone?.trim() || undefined,
+      avatarUrl: editingStaffUser.avatarUrl?.trim() || undefined
     });
 
     setEditingStaffUser(null);
@@ -1841,9 +1862,16 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                         justifyContent: 'center',
                         fontWeight: 700,
                         fontSize: '0.8rem',
+                        overflow: 'hidden',
                         flexShrink: 0
                       }}>
-                        {teacher?.name ? teacher.name.charAt(0) : 'D'}
+                        {teacher?.avatarUrl ? (
+                          <img src={teacher.avatarUrl} alt={teacher.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : teacher?.name ? (
+                          teacher.name.charAt(0)
+                        ) : (
+                          'D'
+                        )}
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1952,7 +1980,35 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
               <tbody>
                 {institutionStaff.map(st => (
                   <tr key={st.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 700 }}>{st.name}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          overflow: 'hidden',
+                          border: '2px solid rgba(79, 70, 229, 0.25)',
+                          flexShrink: 0
+                        }}>
+                          {st.avatarUrl ? (
+                            <img src={st.avatarUrl} alt={st.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            st.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{st.name}</div>
+                          {st.phone && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>📞 {st.phone}</div>}
+                        </div>
+                      </div>
+                    </td>
                     <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                       {st.idNumber || '—'}
                     </td>
@@ -2902,6 +2958,67 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 />
               </div>
 
+              {/* Foto de Perfil / Avatar */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Foto de Perfil (Opcional)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--bg-surface)', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    overflow: 'hidden',
+                    border: '2px solid rgba(79, 70, 229, 0.3)',
+                    flexShrink: 0
+                  }}>
+                    {staffAvatarUrl ? (
+                      <img src={staffAvatarUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      staffName ? staffName.charAt(0).toUpperCase() : <Users size={20} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Pegar URL de foto o subir archivo..."
+                        value={staffAvatarUrl}
+                        onChange={e => setStaffAvatarUrl(e.target.value)}
+                        className="input-field"
+                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                      />
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        <UploadCloud size={14} color="#4f46e5" />
+                        <span>Subir</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={e => handleImageFileRead(e, setStaffAvatarUrl)}
+                        />
+                      </label>
+                    </div>
+                    {staffAvatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setStaffAvatarUrl('')}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                      >
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
@@ -3075,6 +3192,67 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                 />
               </div>
 
+              {/* Foto de Perfil / Avatar */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>
+                  Foto de Perfil (Opcional)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--bg-surface)', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    overflow: 'hidden',
+                    border: '2px solid rgba(79, 70, 229, 0.3)',
+                    flexShrink: 0
+                  }}>
+                    {editingStaffUser.avatarUrl ? (
+                      <img src={editingStaffUser.avatarUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      editingStaffUser.name ? editingStaffUser.name.charAt(0).toUpperCase() : <Users size={20} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Pegar URL de foto o subir archivo..."
+                        value={editingStaffUser.avatarUrl || ''}
+                        onChange={e => setEditingStaffUser({ ...editingStaffUser, avatarUrl: e.target.value })}
+                        className="input-field"
+                        style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                      />
+                      <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        <UploadCloud size={14} color="#4f46e5" />
+                        <span>Subir</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={e => handleImageFileRead(e, (url) => setEditingStaffUser({ ...editingStaffUser, avatarUrl: url }))}
+                        />
+                      </label>
+                    </div>
+                    {editingStaffUser.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingStaffUser({ ...editingStaffUser, avatarUrl: undefined })}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                      >
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
@@ -3166,18 +3344,39 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
                   )}
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
-                    URL del Logo o Fotografía Institucional:
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '2px' }}>
+                    Logotipo o Fotografía Institucional:
                   </label>
-                  <input
-                    type="url"
-                    placeholder="https://ejemplo.com/logo-colegio.png"
-                    value={instLogoUrl}
-                    onChange={e => setInstLogoUrl(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem' }}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="url"
+                      placeholder="https://ejemplo.com/logo-colegio.png o subir archivo..."
+                      value={instLogoUrl}
+                      onChange={e => setInstLogoUrl(e.target.value)}
+                      className="input-field"
+                      style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                    />
+                    <label className="btn btn-secondary btn-sm" style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.76rem' }}>
+                      <UploadCloud size={14} color="#4f46e5" />
+                      <span>Subir</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => handleImageFileRead(e, setInstLogoUrl)}
+                      />
+                    </label>
+                  </div>
+                  {instLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setInstLogoUrl('')}
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                    >
+                      Quitar imagen
+                    </button>
+                  )}
                 </div>
               </div>
 
