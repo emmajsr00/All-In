@@ -17,7 +17,17 @@ import {
   Camera,
   X,
   Trash2,
-  Loader2
+  Loader2,
+  Lock,
+  Mail,
+  Key,
+  Phone,
+  User as UserIcon,
+  Save,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  UploadCloud
 } from 'lucide-react';
 import type { User, Institution } from '../types';
 import { db, exportDatabaseBackup, importDatabaseBackup } from '../db';
@@ -52,18 +62,36 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [profileAvatarUrl, setProfileAvatarUrl] = React.useState(currentUser.avatarUrl || '');
-  const [isSavingAvatar, setIsSavingAvatar] = React.useState(false);
+  const [profileName, setProfileName] = React.useState(currentUser.name || '');
+  const [profileEmail, setProfileEmail] = React.useState(currentUser.email || '');
+  const [profilePassword, setProfilePassword] = React.useState(currentUser.password || '');
+  const [profileIdNumber, setProfileIdNumber] = React.useState(currentUser.idNumber || '');
+  const [profilePhone, setProfilePhone] = React.useState(currentUser.phone || '');
+  const [profileTitle, setProfileTitle] = React.useState(currentUser.title || '');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [isSavingProfile, setIsSavingProfile] = React.useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = React.useState('');
 
   React.useEffect(() => {
     setProfileAvatarUrl(currentUser.avatarUrl || '');
-  }, [currentUser.avatarUrl]);
+    setProfileName(currentUser.name || '');
+    setProfileEmail(currentUser.email || '');
+    setProfilePassword(currentUser.password || '');
+    setProfileIdNumber(currentUser.idNumber || '');
+    setProfilePhone(currentUser.phone || '');
+    setProfileTitle(currentUser.title || '');
+  }, [currentUser, isProfileModalOpen]);
+
+  // Solo ADMIN, DIRECTOR y DEVELOPER pueden modificar información personal oficial (nombre, cédula, cargo).
+  // Para los DOCENTES, esta sección se mantiene bloqueada/protegida (solo lectura), pero SÍ pueden modificar foto, correo, clave y teléfono.
+  const canEditPersonalInfo = currentUser.role === 'DEVELOPER' || currentUser.role === 'DIRECTOR' || currentUser.role === 'ADMIN';
 
   // Subir foto desde la PC (solo archivo local, sin link ni url)
   const handlePhotoUploadFromPC = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('La imagen no debe superar los 2MB.');
+    if (file.size > 3 * 1024 * 1024) {
+      alert('La imagen no debe superar los 3MB.');
       return;
     }
     const reader = new FileReader();
@@ -71,15 +99,11 @@ export const Header: React.FC<HeaderProps> = ({
       if (typeof event.target?.result === 'string') {
         const base64Url = event.target.result;
         setProfileAvatarUrl(base64Url);
-        setIsSavingAvatar(true);
         try {
           await db.users.update(currentUser.id, { avatarUrl: base64Url });
           if (onUserDataChanged) onUserDataChanged();
         } catch (err) {
           console.error('Error al guardar foto:', err);
-          alert('Error al guardar la foto de perfil.');
-        } finally {
-          setIsSavingAvatar(false);
         }
       }
     };
@@ -88,16 +112,53 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleRemovePhoto = async () => {
     if (confirm('¿Deseas quitar tu foto de perfil?')) {
-      setIsSavingAvatar(true);
       try {
         await db.users.update(currentUser.id, { avatarUrl: undefined });
         setProfileAvatarUrl('');
         if (onUserDataChanged) onUserDataChanged();
       } catch (err) {
         console.error('Error al quitar foto:', err);
-      } finally {
-        setIsSavingAvatar(false);
       }
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileEmail.trim()) {
+      alert('El correo electrónico no puede estar vacío.');
+      return;
+    }
+    if (canEditPersonalInfo && !profileName.trim()) {
+      alert('El nombre completo es requerido.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const updateData: Partial<User> = {
+        email: profileEmail.trim(),
+        password: profilePassword ? profilePassword.trim() : undefined,
+        phone: profilePhone.trim() || undefined,
+        avatarUrl: profileAvatarUrl.trim() || undefined
+      };
+
+      if (canEditPersonalInfo) {
+        updateData.name = profileName.trim();
+        updateData.idNumber = profileIdNumber.trim() || undefined;
+        updateData.title = profileTitle.trim() || undefined;
+      }
+
+      await db.users.update(currentUser.id, updateData);
+      setProfileSuccessMsg('¡Datos actualizados con éxito!');
+      if (onUserDataChanged) onUserDataChanged();
+      setTimeout(() => {
+        setProfileSuccessMsg('');
+      }, 3500);
+    } catch (err) {
+      console.error('Error al actualizar datos de usuario:', err);
+      alert('Ocurrió un error al guardar los cambios.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -496,49 +557,86 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* MODAL: GESTIÓN DE PERFIL Y FOTO DEL USUARIO CONECTADO */}
+      {/* MODAL: GESTIÓN DE PERFIL Y SEGURIDAD DEL USUARIO */}
       {isProfileModalOpen && (
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.65)',
-          backdropFilter: 'blur(5px)',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 3000,
-          padding: '16px'
+          zIndex: 3500,
+          padding: '20px'
         }}>
           <div className="glass-panel" style={{
             width: '100%',
-            maxWidth: '440px',
-            padding: '26px',
-            borderRadius: '18px',
+            maxWidth: '560px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: '22px',
             background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
-            animation: 'fadeIn 0.2s ease-out'
+            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.45)',
+            animation: 'fadeIn 0.2s ease-out',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Camera size={20} color="#4f46e5" />
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Mi Perfil</h3>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border-subtle)',
+              background: 'var(--bg-surface)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '12px',
+                  background: 'rgba(79, 70, 229, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <UserCheck size={20} color="#4f46e5" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Mi Perfil & Credenciales</h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Administra tus datos personales y credenciales de acceso
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsProfileModalOpen(false)}
                 className="btn btn-ghost btn-sm"
-                style={{ padding: '4px' }}
+                style={{ padding: '6px', borderRadius: '10px' }}
+                title="Cerrar ventana"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '14px', marginBottom: '20px' }}>
-              {/* Foto de Perfil en Grande con Overlay */}
-              <div style={{ position: 'relative' }}>
+            {/* Modal Scrollable Body */}
+            <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Tarjeta Superior: Avatar y Foto desde PC */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '18px',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)'
+              }}>
                 <div style={{
-                  width: '96px',
-                  height: '96px',
+                  width: '76px',
+                  height: '76px',
                   borderRadius: '50%',
                   background: roleTheme.bg,
                   color: roleTheme.text,
@@ -546,10 +644,11 @@ export const Header: React.FC<HeaderProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 900,
-                  fontSize: '2.4rem',
+                  fontSize: '2rem',
                   overflow: 'hidden',
-                  border: '3px solid rgba(79, 70, 229, 0.4)',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+                  border: '3px solid rgba(79, 70, 229, 0.35)',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  flexShrink: 0
                 }}>
                   {profileAvatarUrl ? (
                     <img
@@ -562,107 +661,371 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </div>
 
-                {isSavingAvatar && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white'
-                  }}>
-                    <Loader2 size={24} className="animate-spin" />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 800 }}>{currentUser.name}</span>
+                    <span className="badge" style={{
+                      background: roleTheme.bg,
+                      color: roleTheme.text,
+                      fontWeight: 700,
+                      padding: '2px 10px',
+                      borderRadius: '10px',
+                      fontSize: '0.72rem'
+                    }}>
+                      {getRoleLabel(currentUser.role)}
+                    </span>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 800 }}>
-                  {currentUser.name}
-                </h4>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  {currentUser.email}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <label
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        padding: '6px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700
+                      }}
+                    >
+                      <UploadCloud size={15} color="#4f46e5" />
+                      <span>{profileAvatarUrl ? 'Cambiar Foto desde PC' : 'Seleccionar Foto desde PC'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={handlePhotoUploadFromPC}
+                      />
+                    </label>
+
+                    {profileAvatarUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="btn btn-ghost btn-sm"
+                        style={{
+                          color: '#ef4444',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '0.78rem',
+                          padding: '6px 10px'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        <span>Quitar foto</span>
+                      </button>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Formatos soportados: PNG, JPG, WEBP. Se almacena localmente en tu equipo.
+                  </span>
                 </div>
-                <span className="badge" style={{
-                  background: roleTheme.bg,
-                  color: roleTheme.text,
-                  fontWeight: 700,
-                  padding: '4px 12px',
-                  borderRadius: '12px',
-                  fontSize: '0.76rem'
-                }}>
-                  {getRoleLabel(currentUser.role)}
-                </span>
               </div>
-            </div>
 
-            {/* Acciones de Foto (Solo Archivo desde la PC, sin Link ni URL) */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              background: 'var(--bg-surface)',
-              padding: '16px',
-              borderRadius: '14px',
-              border: '1px solid var(--border-subtle)',
-              alignItems: 'center'
-            }}>
-              <label
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
+              {/* Mensaje de Éxito si guardó */}
+              {profileSuccessMsg && (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  color: '#059669',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '12px',
+                  padding: '10px 16px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
                   gap: '8px',
-                  cursor: 'pointer',
-                  padding: '10px 16px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                  fontWeight: 700,
-                  fontSize: '0.85rem'
-                }}
-              >
-                <Camera size={16} />
-                <span>{profileAvatarUrl ? 'Cambiar Foto desde la PC' : 'Seleccionar Foto desde la PC'}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={handlePhotoUploadFromPC}
-                />
-              </label>
-
-              {profileAvatarUrl && (
-                <button
-                  type="button"
-                  onClick={handleRemovePhoto}
-                  className="btn btn-ghost btn-sm"
-                  style={{
-                    color: '#ef4444',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '0.78rem'
-                  }}
-                >
-                  <Trash2 size={14} />
-                  <span>Quitar foto actual</span>
-                </button>
+                  fontSize: '0.85rem',
+                  fontWeight: 700
+                }}>
+                  <CheckCircle2 size={18} />
+                  <span>{profileSuccessMsg}</span>
+                </div>
               )}
-            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button
-                type="button"
-                onClick={() => setIsProfileModalOpen(false)}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '7px 18px', fontWeight: 600 }}
-              >
-                Cerrar
-              </button>
+              {/* Formulario de Información y Credenciales */}
+              <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* SECCIÓN 1: INFORMACIÓN PERSONAL / OFICIAL */}
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <UserIcon size={16} color="#6366f1" />
+                      <span style={{ fontSize: '0.86rem', fontWeight: 800 }}>Información Personal Oficial</span>
+                    </div>
+                    {!canEditPersonalInfo ? (
+                      <span className="badge" style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Lock size={12} />
+                        Bloqueada en Docentes
+                      </span>
+                    ) : (
+                      <span className="badge" style={{
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        color: '#059669',
+                        fontSize: '0.72rem',
+                        fontWeight: 700
+                      }}>
+                        Modo Edición Habilitado
+                      </span>
+                    )}
+                  </div>
+
+                  {!canEditPersonalInfo && (
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                      background: 'rgba(148, 163, 184, 0.1)',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <Lock size={13} color="#94a3b8" />
+                      <span>Tu nombre y cédula están administrados por la Dirección de tu Institución.</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                        Nombre Completo:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          value={profileName}
+                          onChange={e => setProfileName(e.target.value)}
+                          disabled={!canEditPersonalInfo}
+                          className="input-field"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            paddingRight: !canEditPersonalInfo ? '32px' : '12px',
+                            fontSize: '0.85rem',
+                            opacity: !canEditPersonalInfo ? 0.75 : 1,
+                            cursor: !canEditPersonalInfo ? 'not-allowed' : 'text',
+                            background: !canEditPersonalInfo ? 'var(--bg-card)' : undefined
+                          }}
+                        />
+                        {!canEditPersonalInfo && (
+                          <Lock size={14} color="#94a3b8" style={{ position: 'absolute', right: '10px', top: '11px' }} />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                        Cédula / Identificación:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          value={profileIdNumber}
+                          onChange={e => setProfileIdNumber(e.target.value)}
+                          disabled={!canEditPersonalInfo}
+                          placeholder={!canEditPersonalInfo ? 'No registrada' : 'Ej. 1-1234-0567'}
+                          className="input-field"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            paddingRight: !canEditPersonalInfo ? '32px' : '12px',
+                            fontSize: '0.85rem',
+                            opacity: !canEditPersonalInfo ? 0.75 : 1,
+                            cursor: !canEditPersonalInfo ? 'not-allowed' : 'text',
+                            background: !canEditPersonalInfo ? 'var(--bg-card)' : undefined
+                          }}
+                        />
+                        {!canEditPersonalInfo && (
+                          <Lock size={14} color="#94a3b8" style={{ position: 'absolute', right: '10px', top: '11px' }} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                      Puesto / Especialidad:
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        value={profileTitle}
+                        onChange={e => setProfileTitle(e.target.value)}
+                        disabled={!canEditPersonalInfo}
+                        placeholder={!canEditPersonalInfo ? getRoleLabel(currentUser.role) : 'Ej. Docente de Informática / Dirección'}
+                        className="input-field"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          paddingRight: !canEditPersonalInfo ? '32px' : '12px',
+                          fontSize: '0.85rem',
+                          opacity: !canEditPersonalInfo ? 0.75 : 1,
+                          cursor: !canEditPersonalInfo ? 'not-allowed' : 'text',
+                          background: !canEditPersonalInfo ? 'var(--bg-card)' : undefined
+                        }}
+                      />
+                      {!canEditPersonalInfo && (
+                        <Lock size={14} color="#94a3b8" style={{ position: 'absolute', right: '10px', top: '11px' }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECCIÓN 2: CREDENCIALES DE ACCESO & CONTACTO (EDITABLE PARA TODOS) */}
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Key size={16} color="#10b981" />
+                      <span style={{ fontSize: '0.86rem', fontWeight: 800 }}>Credenciales & Contacto (Editable)</span>
+                    </div>
+                    <span className="badge" style={{
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      color: '#059669',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}>
+                      Tus Accesos
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                        Correo Electrónico *
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="email"
+                          value={profileEmail}
+                          onChange={e => setProfileEmail(e.target.value)}
+                          required
+                          className="input-field"
+                          style={{ width: '100%', padding: '9px 12px 9px 34px', fontSize: '0.85rem' }}
+                        />
+                        <Mail size={15} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '11px' }} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                        Teléfono Móvil:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="tel"
+                          value={profilePhone}
+                          onChange={e => setProfilePhone(e.target.value)}
+                          placeholder="Ej. 8888-8888"
+                          className="input-field"
+                          style={{ width: '100%', padding: '9px 12px 9px 34px', fontSize: '0.85rem' }}
+                        />
+                        <Phone size={15} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '11px' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                      Contraseña / Clave de Acceso:
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={profilePassword}
+                        onChange={e => setProfilePassword(e.target.value)}
+                        placeholder="Ingresa tu contraseña"
+                        className="input-field"
+                        style={{ width: '100%', padding: '9px 38px 9px 34px', fontSize: '0.85rem' }}
+                      />
+                      <Key size={15} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '11px' }} />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '7px',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          color: 'var(--text-muted)'
+                        }}
+                        title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '3px' }}>
+                      Esta contraseña es con la que ingresarás al sistema desde la pantalla de login.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botones de Acción */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileModalOpen(false)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '8px 18px', fontWeight: 600, borderRadius: '10px' }}
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      padding: '8px 22px',
+                      fontWeight: 700,
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+                    }}
+                  >
+                    {isSavingProfile ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={15} />
+                        <span>Guardar Cambios</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
