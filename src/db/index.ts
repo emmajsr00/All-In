@@ -662,3 +662,73 @@ export async function seedDatabaseIfEmpty() {
   ];
   await db.schedules.bulkAdd(schedules);
 }
+
+// Exportar copia de seguridad completa en JSON
+export async function exportDatabaseBackup(): Promise<string> {
+  const backup = {
+    appName: 'ALL-IN Educational System',
+    version: '3.0',
+    exportDate: new Date().toISOString(),
+    institutions: await db.institutions.toArray(),
+    users: await db.users.toArray(),
+    groups: await db.groups.toArray(),
+    subjects: await db.subjects.toArray(),
+    assignments: await db.assignments.toArray(),
+    students: await db.students.toArray(),
+    evaluationConfigs: await db.evaluationConfigs.toArray(),
+    indicators: await db.indicators.toArray(),
+    classSessions: await db.classSessions.toArray(),
+    sessionDetails: await db.sessionDetails.toArray(),
+    taskGrades: await db.taskGrades.toArray(),
+    examGrades: await db.examGrades.toArray(),
+    projectGrades: await db.projectGrades.toArray(),
+    portfolioGrades: await db.portfolioGrades.toArray(),
+    schedules: await db.schedules.toArray()
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+// Importar copia de seguridad desde JSON
+export async function importDatabaseBackup(jsonData: string): Promise<boolean> {
+  const data = JSON.parse(jsonData);
+  if (!data.users || !data.groups || !data.students) {
+    throw new Error('El archivo no contiene un formato de respaldo válido de ALL-IN.');
+  }
+
+  await db.transaction('rw', [
+    db.institutions,
+    db.users,
+    db.groups,
+    db.subjects,
+    db.assignments,
+    db.students,
+    db.evaluationConfigs,
+    db.indicators,
+    db.classSessions,
+    db.sessionDetails,
+    db.taskGrades,
+    db.examGrades,
+    db.projectGrades,
+    db.portfolioGrades,
+    db.schedules
+  ], async () => {
+    if (data.institutions?.length) { await db.institutions.clear(); await db.institutions.bulkAdd(data.institutions); }
+    if (data.users?.length) { await db.users.clear(); await db.users.bulkAdd(data.users); }
+    if (data.groups?.length) { await db.groups.clear(); await db.groups.bulkAdd(data.groups); }
+    if (data.subjects?.length) { await db.subjects.clear(); await db.subjects.bulkAdd(data.subjects); }
+    if (data.assignments?.length) { await db.assignments.clear(); await db.assignments.bulkAdd(data.assignments); }
+    if (data.students?.length) { await db.students.clear(); await db.students.bulkAdd(data.students); }
+    if (data.evaluationConfigs?.length) { await db.evaluationConfigs.clear(); await db.evaluationConfigs.bulkAdd(data.evaluationConfigs); }
+    if (data.indicators?.length) { await db.indicators.clear(); await db.indicators.bulkAdd(data.indicators); }
+    if (data.classSessions?.length) { await db.classSessions.clear(); await db.classSessions.bulkAdd(data.classSessions); }
+    if (data.sessionDetails?.length) { await db.sessionDetails.clear(); await db.sessionDetails.bulkAdd(data.sessionDetails); }
+    if (data.taskGrades?.length) { await db.taskGrades.clear(); await db.taskGrades.bulkAdd(data.taskGrades); }
+    if (data.examGrades?.length) { await db.examGrades.clear(); await db.examGrades.bulkAdd(data.examGrades); }
+    if (data.projectGrades?.length) { await db.projectGrades.clear(); await db.projectGrades.bulkAdd(data.projectGrades); }
+    if (data.portfolioGrades?.length) { await db.portfolioGrades.clear(); await db.portfolioGrades.bulkAdd(data.portfolioGrades); }
+    if (data.schedules?.length) { await db.schedules.clear(); await db.schedules.bulkAdd(data.schedules); }
+  });
+
+  return true;
+}
+

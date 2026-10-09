@@ -5,12 +5,18 @@ import {
   Moon,
   Sun,
   Wifi,
+  WifiOff,
+  Download,
+  Upload,
+  Database,
+  Check,
   LogOut,
   ShieldAlert,
   Code2,
   UserCheck
 } from 'lucide-react';
 import type { User, Institution } from '../types';
+import { exportDatabaseBackup, importDatabaseBackup } from '../db';
 
 interface HeaderProps {
   currentUser: User;
@@ -85,6 +91,75 @@ export const Header: React.FC<HeaderProps> = ({
 
   const instBadge = getInstitutionBadge(currentInstitution?.type);
 
+  // Estado de conexión en tiempo real
+  const [isOnline, setIsOnline] = React.useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isBackingUp, setIsBackingUp] = React.useState(false);
+  const [backupSuccess, setBackupSuccess] = React.useState(false);
+  const [isRestoring, setIsRestoring] = React.useState(false);
+  const restoreInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Generar y descargar copia de seguridad express en 1-Clic
+  const handleExpressBackup = async () => {
+    try {
+      setIsBackingUp(true);
+      const jsonStr = await exportDatabaseBackup();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const now = new Date();
+      const dateTag = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      a.href = url;
+      a.download = `ALL-IN_Respaldo_${dateTag}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setBackupSuccess(true);
+      setTimeout(() => setBackupSuccess(false), 3500);
+    } catch (err) {
+      console.error('Error al generar copia de seguridad:', err);
+      alert('Ocurrió un error al exportar la base de datos.');
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  // Restaurar copia de seguridad desde archivo local
+  const handleFileRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm('¿Deseas restaurar esta copia de seguridad? Se sobreescribirán los registros locales con los del archivo.')) {
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      setIsRestoring(true);
+      const text = await file.text();
+      await importDatabaseBackup(text);
+      alert('¡Copia de seguridad restaurada exitosamente! La página se recargará para aplicar los cambios.');
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Error al restaurar:', err);
+      alert('Error al restaurar: ' + (err?.message || 'Archivo inválido'));
+    } finally {
+      setIsRestoring(false);
+      e.target.value = '';
+    }
+  };
+
   return (
     <header style={{
       position: 'sticky',
@@ -143,18 +218,84 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right side controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Offline / Online indicator */}
-          <div className="badge" style={{
-            background: 'rgba(16, 185, 129, 0.12)',
-            color: '#10b981',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 10px'
-          }} title="Datos almacenados localmente en IndexedDB. Totalmente operativo sin internet.">
-            <Wifi size={13} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Offline-Ready</span>
+          {/* Dynamic Offline/Online status badge */}
+          <div
+            className="badge"
+            style={{
+              background: isOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.15)',
+              color: isOnline ? '#10b981' : '#f59e0b',
+              border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.3)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              fontWeight: 700,
+              fontSize: '0.75rem'
+            }}
+            title={isOnline ? 'Conexión activa. Los datos se resguardan de forma segura en tu navegador (IndexedDB).' : 'Sin conexión a internet. La plataforma continúa funcionando al 100% de manera autónoma.'}
+          >
+            {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+            <span>{isOnline ? 'En Línea • Offline-Ready' : 'Modo Offline (Activo)'}</span>
+          </div>
+
+          {/* Botón Respaldo Express 1-Clic */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              onClick={handleExpressBackup}
+              disabled={isBackingUp}
+              className={`btn btn-sm ${backupSuccess ? 'btn-success' : 'btn-secondary'}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: '8px',
+                background: backupSuccess ? 'rgba(16, 185, 129, 0.9)' : undefined,
+                color: backupSuccess ? '#ffffff' : undefined
+              }}
+              title="Descargar copia de seguridad completa (secciones, notas, asistencia y horarios) en 1 solo clic"
+            >
+              {backupSuccess ? (
+                <>
+                  <Check size={13} />
+                  <span>¡Copia Descargada!</span>
+                </>
+              ) : isBackingUp ? (
+                <>
+                  <Database size={13} className="animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={13} color="#4f46e5" />
+                  <span>Respaldo Express</span>
+                </>
+              )}
+            </button>
+
+            {/* Hidden Restore input for teacher/dev */}
+            <input
+              type="file"
+              ref={restoreInputRef}
+              onChange={handleFileRestore}
+              accept=".json"
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => restoreInputRef.current?.click()}
+              disabled={isRestoring}
+              className="btn btn-sm btn-secondary"
+              style={{
+                padding: '4px 6px',
+                fontSize: '0.7rem',
+                borderRadius: '8px'
+              }}
+              title="Restaurar base de datos desde un archivo de respaldo JSON"
+            >
+              <Upload size={12} color="#64748b" />
+            </button>
           </div>
 
           {/* INSTITUTION SWITCHER: Disponible para Desarrollador y Docentes (ya que pueden laborar en múltiples instituciones) */}

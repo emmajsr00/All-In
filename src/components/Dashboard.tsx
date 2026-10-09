@@ -252,6 +252,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const activeGroup = activeAssignment ? groups.find(g => g.id === activeAssignment.groupId) : null;
   const activeSubject = activeAssignment ? subjects.find(s => s.id === activeAssignment.subjectId) : null;
 
+  // Clases programadas para el día de hoy
+  const now = new Date();
+  const currentDayOfWeek = now.getDay();
+  const daysNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const todayDayName = daysNames[currentDayOfWeek];
+  const currentTimeFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const todaySchedules = schedules
+    .filter(s => s.teacherId === currentUser.id && s.dayOfWeek === currentDayOfWeek)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
   // Crear Sección / Grupo (Docente Independiente)
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -768,6 +779,197 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Mini-Widget: Clases de Hoy / Horario Rápido del Día */}
+      <div className="glass-panel" style={{
+        padding: '20px 24px',
+        borderRadius: '16px',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--bg-card)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          marginBottom: todaySchedules.length > 0 ? '16px' : '0'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)'
+            }}>
+              <Calendar size={18} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
+                  Clases de Hoy — {todayDayName}
+                </h3>
+                <span className="badge" style={{
+                  background: todaySchedules.length > 0 ? 'rgba(79, 70, 229, 0.12)' : 'rgba(100, 116, 139, 0.12)',
+                  color: todaySchedules.length > 0 ? '#4f46e5' : 'var(--text-muted)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700
+                }}>
+                  {todaySchedules.length} {todaySchedules.length === 1 ? 'lección' : 'lecciones'} programadas
+                </span>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                Acceso directo para calificar o pasar asistencia en tus lecciones del día
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onOpenSchedule}
+            className="btn btn-sm btn-secondary"
+            style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Clock size={14} color="#6366f1" />
+            <span>Ver Horario Semanal</span>
+          </button>
+        </div>
+
+        {todaySchedules.length > 0 ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '12px'
+          }}>
+            {todaySchedules.map(sch => {
+              const grp = groups.find(g => g.id === sch.groupId);
+              const sub = subjects.find(s => s.id === sch.subjectId);
+              const asg = userAssignments.find(a => a.groupId === sch.groupId && a.subjectId === sch.subjectId);
+
+              const isPast = currentTimeFormatted > sch.endTime;
+              const isCurrent = currentTimeFormatted >= sch.startTime && currentTimeFormatted <= sch.endTime;
+              const isUpcoming = currentTimeFormatted < sch.startTime;
+
+              return (
+                <div
+                  key={sch.id}
+                  style={{
+                    background: isCurrent
+                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%)'
+                      : 'var(--bg-main)',
+                    border: isCurrent
+                      ? '2px solid #10b981'
+                      : '1px solid var(--border-subtle)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    transition: 'transform 0.15s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        color: isCurrent ? '#059669' : 'var(--text-main)',
+                        fontFamily: 'var(--font-mono)'
+                      }}>
+                        <Clock size={13} color={isCurrent ? '#10b981' : '#6366f1'} />
+                        {sch.startTime} - {sch.endTime}
+                      </div>
+
+                      {isCurrent && (
+                        <span className="badge" style={{ background: '#10b981', color: '#ffffff', fontSize: '0.68rem', fontWeight: 800 }}>
+                          ● EN CURSO
+                        </span>
+                      )}
+                      {isUpcoming && (
+                        <span className="badge" style={{ background: 'rgba(79, 70, 229, 0.12)', color: '#4f46e5', fontSize: '0.68rem', fontWeight: 700 }}>
+                          Próxima
+                        </span>
+                      )}
+                      {isPast && (
+                        <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: 600 }}>
+                          ✓ Concluida
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                      {grp?.groupName || `Sección ${grp?.sectionCode || 'Sin sección'}`}
+                    </div>
+
+                    <div style={{ fontSize: '0.82rem', color: '#6366f1', fontWeight: 600, marginTop: '2px' }}>
+                      {sub?.name || 'Materia'}
+                    </div>
+
+                    {sch.classroom && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        📍 {sch.classroom}
+                      </div>
+                    )}
+                  </div>
+
+                  {asg ? (
+                    <button
+                      onClick={() => onSelectAssignment(asg)}
+                      className="btn btn-sm btn-primary"
+                      style={{
+                        width: '100%',
+                        fontSize: '0.78rem',
+                        padding: '6px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        borderRadius: '8px',
+                        background: isCurrent ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : undefined
+                      }}
+                    >
+                      <Play size={13} />
+                      <span>Abrir Registro y Calificar</span>
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                      Sin asignación vinculada
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+            paddingTop: '6px'
+          }}>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: 0 }}>
+              Hoy {todayDayName.toLowerCase()} no tienes lecciones fijadas en tu horario. Puedes usar este tiempo para calificar actividades pendientes o planificar.
+            </p>
+            <button
+              onClick={onOpenSchedule}
+              className="btn btn-sm btn-secondary"
+              style={{ fontSize: '0.78rem' }}
+            >
+              Configurar Horario
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Estado vacío si no hay secciones aún */}
       {sectionsToDisplay.length === 0 && (

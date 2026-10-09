@@ -152,6 +152,35 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
   // Estudiante activo resaltado al calificar
   const [activeGradingStudentId, setActiveGradingStudentId] = useState<string | null>(null);
 
+  // Navegación ultra-rápida estilo Excel para calificar (Enter o flechas)
+  const handleExcelKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    rowIndex: number,
+    colIndex: number,
+    totalRows: number,
+    tableId: string
+  ) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextRow = rowIndex + 1 < totalRows ? rowIndex + 1 : 0;
+      const selector = `[data-excel-table="${tableId}"][data-row="${nextRow}"][data-col="${colIndex}"]`;
+      const target = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector);
+      if (target) {
+        target.focus();
+        if ('select' in target) (target as HTMLInputElement).select?.();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevRow = rowIndex - 1 >= 0 ? rowIndex - 1 : totalRows - 1;
+      const selector = `[data-excel-table="${tableId}"][data-row="${prevRow}"][data-col="${colIndex}"]`;
+      const target = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector);
+      if (target) {
+        target.focus();
+        if ('select' in target) (target as HTMLInputElement).select?.();
+      }
+    }
+  };
+
   // Modal para nuevo indicador de planeamiento (Habilidad / Área 100% manual)
   const [showAddIndicatorModal, setShowAddIndicatorModal] = useState(false);
   const [newIndCode, setNewIndCode] = useState(`IND-0${indicators.length + 1}`);
@@ -2215,6 +2244,9 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Cada clase evalúa un indicador del planeamiento. Nivel 3 = 100%, Nivel 2 = 50%, Nivel 1 = 25%.
                   </p>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(6, 182, 212, 0.12)', color: '#0891b2', padding: '2px 10px', borderRadius: '14px', fontWeight: 700, marginTop: '4px' }}>
+                    <span>⚡ Modo Rápido Excel Activo: Usa Enter o Flechas ↑ ↓ para saltar de alumno</span>
+                  </div>
                 </div>
 
                 <button onClick={() => setShowAddSessionModal(true)} className="btn btn-primary btn-sm">
@@ -2272,7 +2304,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                           {item.puntosCotidianoObtenidos} / {item.totalLessons}
                         </td>
 
-                        {sessions.map(sess => {
+                        {sessions.map((sess, sessIdx) => {
                           const det = sessionDetails.find(d => d.sessionId === sess.id && d.studentId === item.studentId) || {
                             attendance: 'PRESENT',
                             cotidianoLevel: 3
@@ -2281,6 +2313,10 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                           return (
                             <td key={sess.id} style={{ padding: '6px 8px', textAlign: 'center', borderLeft: '1px solid var(--border-subtle)' }}>
                               <select
+                                data-excel-table="cotidiano"
+                                data-row={idx}
+                                data-col={sessIdx}
+                                onKeyDown={(e) => handleExcelKeyDown(e, idx, sessIdx, filteredList.length, 'cotidiano')}
                                 value={det.cotidianoLevel}
                                 onFocus={() => setActiveGradingStudentId(item.studentId)}
                                 onChange={(e) => handleUpdateSessionDetail(sess.id, item.studentId, { cotidianoLevel: parseInt(e.target.value) as any })}
@@ -2362,6 +2398,10 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     Asignado: {tareasCurrentSum}% / {tareasMaxWeight}% (Disponible: {(tareasMaxWeight - tareasCurrentSum).toFixed(1)}%)
                   </div>
 
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
+                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
+                  </div>
+
                   <button
                     onClick={() => {
                       setNewItemTitle(`Tarea ${(config.taskDefinitions || []).length + 1}`);
@@ -2425,7 +2465,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                             {item.student.firstLastName} {item.student.firstName}
                           </td>
 
-                          {(config.taskDefinitions || []).map(t => {
+                          {(config.taskDefinitions || []).map((t, tIdx) => {
                             const tg = taskGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.taskId === t.id || g.taskNumber === t.number));
                             const pctVal = tg ? tg.percentageEarned : 0;
                             const totalPts = t.totalPoints || 100;
@@ -2442,7 +2482,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={totalPts}
                                         min={0}
                                         value={ptsVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="tareas"
+                                        data-row={idx}
+                                        data-col={tIdx}
+                                        onKeyDown={(e) => handleExcelKeyDown(e, idx, tIdx, filteredList.length, 'tareas')}
+                                        onFocus={(e) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          e.target.select();
+                                        }}
                                         onChange={(e) => handleUpdateTaskByPointsOrPct(item.studentId, t, parseFloat(e.target.value) || 0, true)}
                                         style={{ width: '70px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
@@ -2458,7 +2505,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={t.percentage}
                                         min={0}
                                         value={pctVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="tareas"
+                                        data-row={idx}
+                                        data-col={tIdx}
+                                        onKeyDown={(e) => handleExcelKeyDown(e, idx, tIdx, filteredList.length, 'tareas')}
+                                        onFocus={(e) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          e.target.select();
+                                        }}
                                         onChange={(e) => handleUpdateTaskByPointsOrPct(item.studentId, t, parseFloat(e.target.value) || 0, false)}
                                         style={{ width: '70px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
@@ -2535,6 +2589,10 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     Asignado: {evaluacionesCurrentSum}% / {evaluacionesMaxWeight}% (Disponible: {(evaluacionesMaxWeight - evaluacionesCurrentSum).toFixed(1)}%)
                   </div>
 
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
+                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
+                  </div>
+
                   <button
                     onClick={() => {
                       setNewItemTitle(`Evaluación ${(config.examDefinitions || []).length + 1}`);
@@ -2598,7 +2656,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                             {item.student.firstLastName} {item.student.firstName}
                           </td>
 
-                          {(config.examDefinitions || []).map(e => {
+                          {(config.examDefinitions || []).map((e, eIdx) => {
                             const eg = examGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.examId === e.id || g.examNumber === e.number));
                             const pctVal = eg ? eg.percentageEarned : 0;
                             const totalPts = e.totalPoints || 100;
@@ -2615,7 +2673,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={totalPts}
                                         min={0}
                                         value={ptsVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="evaluaciones"
+                                        data-row={idx}
+                                        data-col={eIdx}
+                                        onKeyDown={(ev) => handleExcelKeyDown(ev, idx, eIdx, filteredList.length, 'evaluaciones')}
+                                        onFocus={(ev) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          ev.target.select();
+                                        }}
                                         onChange={(ev) => handleUpdateExamByPointsOrPct(item.studentId, e, parseFloat(ev.target.value) || 0, true)}
                                         style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
@@ -2631,7 +2696,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={e.percentage}
                                         min={0}
                                         value={pctVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="evaluaciones"
+                                        data-row={idx}
+                                        data-col={eIdx}
+                                        onKeyDown={(ev) => handleExcelKeyDown(ev, idx, eIdx, filteredList.length, 'evaluaciones')}
+                                        onFocus={(ev) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          ev.target.select();
+                                        }}
                                         onChange={(ev) => handleUpdateExamByPointsOrPct(item.studentId, e, parseFloat(ev.target.value) || 0, false)}
                                         style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
@@ -2681,6 +2753,10 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                     color: proyectosCurrentSum === proyectosMaxWeight ? '#10b981' : '#d97706'
                   }}>
                     Asignado: {proyectosCurrentSum}% / {proyectosMaxWeight}%
+                  </div>
+
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '4px 10px', borderRadius: '14px', fontWeight: 700 }}>
+                    <span>⚡ Modo Excel: Usa Enter o Flechas ↑ ↓ para calificar al siguiente alumno</span>
                   </div>
 
                   <button
@@ -2744,7 +2820,7 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                             {item.student.firstLastName} {item.student.firstName}
                           </td>
 
-                          {(config.projectDefinitions || []).map(p => {
+                          {(config.projectDefinitions || []).map((p, pIdx) => {
                             const pg = projectGrades.find(g => g.assignmentId === assignment.id && g.studentId === item.studentId && (g.projectId === p.id || g.projectNumber === p.number));
                             const pctVal = pg ? pg.percentageEarned : 0;
                             const totalPts = p.totalPoints || 100;
@@ -2761,7 +2837,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={totalPts}
                                         min={0}
                                         value={ptsVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="proyectos"
+                                        data-row={idx}
+                                        data-col={pIdx}
+                                        onKeyDown={(ev) => handleExcelKeyDown(ev, idx, pIdx, filteredList.length, 'proyectos')}
+                                        onFocus={(ev) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          ev.target.select();
+                                        }}
                                         onChange={(ev) => handleUpdateProjectByPointsOrPct(item.studentId, p, parseFloat(ev.target.value) || 0, true)}
                                         style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
@@ -2777,7 +2860,14 @@ export const GroupWorkspaceView: React.FC<GroupWorkspaceViewProps> = ({
                                         max={p.percentage}
                                         min={0}
                                         value={pctVal}
-                                        onFocus={() => setActiveGradingStudentId(item.studentId)}
+                                        data-excel-table="proyectos"
+                                        data-row={idx}
+                                        data-col={pIdx}
+                                        onKeyDown={(ev) => handleExcelKeyDown(ev, idx, pIdx, filteredList.length, 'proyectos')}
+                                        onFocus={(ev) => {
+                                          setActiveGradingStudentId(item.studentId);
+                                          ev.target.select();
+                                        }}
                                         onChange={(ev) => handleUpdateProjectByPointsOrPct(item.studentId, p, parseFloat(ev.target.value) || 0, false)}
                                         style={{ width: '75px', padding: '4px', textAlign: 'center', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700 }}
                                       />
