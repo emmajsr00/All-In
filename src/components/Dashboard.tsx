@@ -104,6 +104,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [studentAccommodationFilter, setStudentAccommodationFilter] = useState<'ALL' | 'ACCOMMODATED' | 'NONE'>('ALL');
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
   const [isImportStudentsModalOpen, setIsImportStudentsModalOpen] = useState(false);
+  const [sectionModalForGrading, setSectionModalForGrading] = useState<Group | null>(null);
 
   // Modal de confirmación personalizada
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -386,6 +387,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return true;
   });
 
+  // Secciones a mostrar en el panel (agrupadas por sección para no colapsar la pantalla)
+  const sectionsToDisplay = isIndependent
+    ? myGroups
+    : groups.filter(g => userAssignments.some(a => a.groupId === g.id));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Welcome Banner */}
@@ -436,7 +442,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Users size={14} color="#4f46e5" /> Grupos a Cargo
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
-              {isIndependent ? myGroups.length : new Set(userAssignments.map(a => a.groupId)).size} Grupos
+              {sectionsToDisplay.length} Grupos
             </div>
           </div>
 
@@ -535,119 +541,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Sección Pro: Mis Grupos a Cargo (para Docente Independiente) */}
-      {isIndependent && myGroups.length > 0 && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={18} color="#4f46e5" /> Secciones y Grupos a Cargo ({myGroups.length})
-              </h2>
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                Grupos independientes que administras. Accede rápidamente a la nómina de estudiantes o vincula asignaturas.
-              </p>
-            </div>
-            <button
-              onClick={() => { setGroupError(null); setIsAddGroupOpen(true); }}
-              className="btn btn-secondary btn-sm"
-              style={{ fontWeight: 600 }}
-            >
-              <FolderPlus size={14} color="#6366f1" /> + Nueva Sección
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-            {myGroups.map(grp => {
-              const grpStudents = students.filter(s => s.groupId === grp.id);
-              const grpAsgs = userAssignments.filter(a => a.groupId === grp.id);
-              return (
-                <div key={grp.id} className="glass-panel" style={{
-                  padding: '16px 18px',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '12px'
-                }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <span className="badge" style={{ background: '#4f46e5', color: 'white', fontWeight: 700, fontSize: '0.82rem' }}>
-                          Sección {grp.sectionCode}
-                        </span>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginTop: '6px' }}>
-                          {grp.groupName || `${grp.grade}° Grado`}
-                        </h3>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {grp.specialty || 'General / Académico'} • Año {grp.year}
-                        </div>
-                      </div>
-                      <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)', fontSize: '0.78rem' }}>
-                        👥 {grpStudents.length} alumnos
-                      </span>
-                    </div>
-
-                    {/* Materias asignadas en este grupo */}
-                    <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {grpAsgs.length === 0 ? (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          Sin materias vinculadas
-                        </span>
-                      ) : (
-                        grpAsgs.map(a => {
-                          const sub = subjects.find(s => s.id === a.subjectId);
-                          return (
-                            <span key={a.id} style={{
-                              fontSize: '0.72rem',
-                              background: 'var(--bg-surface)',
-                              border: `1px solid ${sub?.color || '#4f46e5'}50`,
-                              color: sub?.color || 'var(--text-main)',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              fontWeight: 600
-                            }}>
-                              {sub?.name || 'Materia'}
-                            </span>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Acciones del grupo */}
-                  <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-                    <button
-                      onClick={() => {
-                        setStudentManagingGroupId(grp.id);
-                        setIsManageStudentsOpen(true);
-                      }}
-                      className="btn btn-secondary btn-sm"
-                      style={{ flex: 1, fontSize: '0.8rem', justifyContent: 'center' }}
-                    >
-                      <Users size={14} color="#10b981" />
-                      Alumnos ({grpStudents.length})
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAssignGroupId(grp.id);
-                        setAssignError(null);
-                        setIsAssignSubjectOpen(true);
-                      }}
-                      className="btn btn-ghost btn-sm"
-                      title="Vincular materia a este grupo"
-                      style={{ padding: '6px' }}
-                    >
-                      <PlusCircle size={15} color="#4f46e5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Smart Active Class Card */}
       {currentActiveSchedule && activeAssignment && (
         <div className="glass-panel" style={{
@@ -704,8 +597,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Estado vacío si no hay asignaciones aún */}
-      {userAssignments.length === 0 && (
+      {/* Estado vacío si no hay secciones aún */}
+      {sectionsToDisplay.length === 0 && (
         <div className="glass-panel" style={{
           padding: '44px 32px',
           textAlign: 'center',
@@ -726,11 +619,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <BookOpen size={32} />
           </div>
           <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '8px' }}>
-            {isIndependent ? 'Comienza a configurar tus clases independientes' : 'Aún no tienes asignaturas asignadas'}
+            {isIndependent ? 'Comienza a configurar tus secciones independientes' : 'Aún no tienes secciones asignadas'}
           </h3>
           <p style={{ color: 'var(--text-muted)', maxWidth: '560px', margin: '0 auto 24px auto', fontSize: '0.95rem' }}>
             {isIndependent
-              ? 'Como docente independiente puedes crear tus propias secciones (ej: 7-1, 10-A, Tutoría), agregar tus materias (ej: Español, Matemáticas) y vincularlas para comenzar con la asistencia y evaluación.'
+              ? 'Como docente independiente puedes crear tus propias secciones (ej: 7-1, 10-A, Tutoría), agregar tus materias y vincularlas para comenzar con la asistencia y evaluación.'
               : 'Ponte en contacto con la dirección institucional para que asigne las secciones y materias a tu cuenta.'}
           </p>
           {isIndependent && (
@@ -752,181 +645,475 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Assigned Groups & Subjects Section */}
-      {userAssignments.length > 0 && (
+      {/* SECCIÓN PRINCIPAL: Mis Secciones a Cargo (1 Card por Sección) */}
+      {sectionsToDisplay.length > 0 && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-                Mis Grupos y Materias Asignadas
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={20} color="#4f46e5" /> Mis Secciones a Cargo ({sectionsToDisplay.length})
               </h2>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Cada tarjeta representa una asignatura. Haz clic para abrir el registro completo con sus pestañas de asistencia, cotidiano, tareas y pruebas.
+                Haz clic en la tarjeta de una sección para ver sus materias asignadas y seleccionar la materia que deseas calificar.
               </p>
             </div>
 
-            <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
-              {userAssignments.length} Asignaturas activas
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)', fontSize: '0.8rem' }}>
+                {userAssignments.length} Asignaturas en total
+              </span>
+              {isIndependent && (
+                <button
+                  onClick={() => { setGroupError(null); setIsAddGroupOpen(true); }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontWeight: 600 }}
+                >
+                  <FolderPlus size={15} color="#4f46e5" /> + Nueva Sección
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-            {userAssignments.map(asg => {
-              const group = groups.find(g => g.id === asg.groupId);
-              const subject = subjects.find(s => s.id === asg.subjectId);
-              const config = evaluationConfigs.find(c => c.assignmentId === asg.id) || {
-                id: 'tmp',
-                assignmentId: asg.id,
-                periodId: 'I_PERIODO',
-                passingGrade: 70,
-                periodWeight: 50,
-                rubrics: []
-              };
-
-              const sectionStudents = students.filter(s => s.groupId === asg.groupId);
-              const enabledRubrics = config.rubrics.filter(r => r.enabled);
+          {/* Grid de Secciones */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+            {sectionsToDisplay.map(grp => {
+              const grpStudents = students.filter(s => s.groupId === grp.id);
+              const grpAsgs = userAssignments.filter(a => a.groupId === grp.id);
+              const isGuia = grp.guideTeacherId === currentUser.id || grpAsgs.some(a => a.isGuia);
 
               return (
                 <div
-                  key={asg.id}
+                  key={grp.id}
                   className="glass-panel hover-lift"
                   style={{
-                    padding: '24px',
+                    padding: '22px',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '16px',
                     display: 'flex',
                     flexDirection: 'column',
+                    justifyContent: 'space-between',
                     gap: '16px',
-                    border: '1px solid var(--border-subtle)',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
                   }}
-                  onClick={() => onSelectAssignment(asg)}
+                  onClick={() => {
+                    if (grpAsgs.length === 1) {
+                      onSelectAssignment(grpAsgs[0]);
+                    } else {
+                      setSectionModalForGrading(grp);
+                    }
+                  }}
                 >
-                  {/* Card Top: Group & Subject Badge */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span className="badge" style={{ background: subject?.color || '#4f46e5', color: 'white', fontSize: '0.8rem', padding: '4px 10px' }}>
-                          {group?.groupName || `Sección ${group?.sectionCode || '12-1'}`}
+                  <div>
+                    {/* Top: Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span className="badge" style={{
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                          color: 'white',
+                          fontWeight: 800,
+                          fontSize: '0.88rem',
+                          padding: '4px 12px'
+                        }}>
+                          Sección {grp.sectionCode}
                         </span>
-                        {asg.isGuia && (
-                          <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.15)', color: '#7c3aed' }}>
+                        {isGuia && (
+                          <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.15)', color: '#7c3aed', fontSize: '0.75rem' }}>
                             Docente Guía
                           </span>
                         )}
                       </div>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '8px' }}>
-                        {subject?.name}
-                      </h3>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Código: {subject?.code} • {group?.specialty || 'General'}
-                      </div>
+
+                      <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)', fontSize: '0.78rem' }}>
+                        👥 {grpStudents.length} alumnos
+                      </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Section Name & Level */}
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '12px' }}>
+                      {grp.groupName || `${grp.grade}° Grado`}
+                    </h3>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {grp.specialty || 'General / Académico'} • Año {grp.year}
+                    </div>
+
+                    {/* Chips de Materias en esta Sección */}
+                    <div style={{ marginTop: '14px' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Materias que impartes ({grpAsgs.length}):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {grpAsgs.length === 0 ? (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Sin materias vinculadas aún
+                          </span>
+                        ) : (
+                          grpAsgs.map(a => {
+                            const sub = subjects.find(s => s.id === a.subjectId);
+                            return (
+                              <button
+                                key={a.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectAssignment(a);
+                                }}
+                                style={{
+                                  fontSize: '0.78rem',
+                                  background: 'var(--bg-surface)',
+                                  border: `1px solid ${sub?.color || '#4f46e5'}60`,
+                                  color: sub?.color || 'var(--text-main)',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'transform 0.15s ease'
+                                }}
+                                title={`Abrir registro de ${sub?.name}`}
+                              >
+                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: sub?.color || '#4f46e5' }} />
+                                {sub?.name || 'Materia'}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botones de Acción al pie de la Card */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid var(--border-subtle)',
+                    marginTop: 'auto'
+                  }}>
+                    {grpAsgs.length === 1 ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpenRubricsConfig(asg);
+                          onSelectAssignment(grpAsgs[0]);
                         }}
-                        className="btn btn-secondary btn-sm"
-                        title="Ajustar y personalizar rubros (Activar/Desactivar Portafolio, etc.)"
-                        style={{ padding: '6px 10px' }}
+                        className="btn btn-primary"
+                        style={{ flex: 1, fontSize: '0.85rem', justifyContent: 'space-between' }}
                       >
-                        <SlidersHorizontal size={14} color="#6366f1" />
-                        Rubros
-                      </button>
-
-                      {isIndependent && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteAssignment(asg);
-                          }}
-                          className="btn btn-danger btn-sm"
-                          title="Desvincular materia de la sección"
-                          style={{ padding: '6px 8px', borderRadius: '8px' }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Active Rubrics Pill summary */}
-                  <div style={{
-                    background: 'var(--bg-surface)',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    fontSize: '0.78rem'
-                  }}>
-                    <div style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Rubros Activos ({enabledRubrics.length}):
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {enabledRubrics.map(r => (
-                        <span key={r.id} style={{
-                          background: 'var(--bg-main)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: '6px',
-                          padding: '2px 6px',
-                          fontSize: '0.72rem',
-                          fontWeight: 600
-                        }}>
-                          {r.label}: <strong style={{ color: '#4f46e5' }}>{r.percentage}%</strong>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <FileSpreadsheet size={15} />
+                          Calificar {subjects.find(s => s.id === grpAsgs[0].subjectId)?.name || 'Materia'}
                         </span>
-                      ))}
-                    </div>
-                  </div>
+                        <ArrowRight size={15} />
+                      </button>
+                    ) : grpAsgs.length > 1 ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSectionModalForGrading(grp);
+                        }}
+                        className="btn btn-primary"
+                        style={{ flex: 1, fontSize: '0.85rem', justifyContent: 'space-between' }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <BookOpen size={15} />
+                          Abrir Materias a Calificar ({grpAsgs.length})
+                        </span>
+                        <ChevronRight size={15} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssignGroupId(grp.id);
+                          setAssignError(null);
+                          setIsAssignSubjectOpen(true);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ flex: 1, fontSize: '0.85rem', justifyContent: 'center' }}
+                      >
+                        <PlusCircle size={15} color="#4f46e5" />
+                        + Asignar Materia
+                      </button>
+                    )}
 
-                  {/* Section stats */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Matrícula: <strong>{sectionStudents.length} estudiantes</strong>
-                      </span>
-                      {isIndependent && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setStudentManagingGroupId(asg.groupId);
-                            setIsManageStudentsOpen(true);
-                          }}
-                          className="btn btn-ghost btn-sm"
-                          style={{ fontSize: '0.76rem', padding: '2px 8px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          title="Ver y gestionar nómina de estudiantes de esta sección"
-                        >
-                          <Users size={12} /> Nómina
-                        </button>
-                      )}
-                    </div>
-                    <span style={{ color: 'var(--text-muted)' }}>
-                      Nota aprobación: <strong>{config.passingGrade} pts</strong>
-                    </span>
-                  </div>
-
-                  {/* Primary Action Button */}
-                  <div style={{
-                    marginTop: 'auto',
-                    paddingTop: '12px',
-                    borderTop: '1px solid var(--border-subtle)'
-                  }}>
                     <button
-                      className="btn btn-primary"
-                      style={{ width: '100%', justifyContent: 'space-between' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectAssignment(asg);
+                        setStudentManagingGroupId(grp.id);
+                        setIsManageStudentsOpen(true);
                       }}
+                      className="btn btn-secondary btn-sm"
+                      title="Ver y administrar estudiantes de esta sección"
+                      style={{ padding: '8px 10px' }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <FileSpreadsheet size={16} />
-                        Abrir Registro de Calificaciones
-                      </span>
-                      <ArrowRight size={16} />
+                      <Users size={15} color="#10b981" />
                     </button>
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Seleccionar Materia de la Sección para Calificar */}
+      {sectionModalForGrading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setSectionModalForGrading(null)}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-main)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '18px',
+            width: '100%',
+            maxWidth: '680px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+            overflow: 'hidden'
+          }} onClick={e => e.stopPropagation()}>
+            
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--bg-surface)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(79, 70, 229, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Layers size={22} color="#4f46e5" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                    Sección {sectionModalForGrading.sectionCode} {sectionModalForGrading.groupName ? `— ${sectionModalForGrading.groupName}` : ''}
+                  </h3>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Selecciona la materia que deseas calificar para abrir el registro de notas, asistencia y reportes.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSectionModalForGrading(null)} className="btn btn-ghost btn-sm" style={{ padding: '6px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body: Cards de Materias de esta Sección */}
+            <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
+              {(() => {
+                const sectionAssignments = userAssignments.filter(a => a.groupId === sectionModalForGrading.id);
+
+                if (sectionAssignments.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '36px 20px', border: '1px dashed var(--border-subtle)', borderRadius: '12px' }}>
+                      <p style={{ color: 'var(--text-muted)', marginBottom: '14px' }}>
+                        No tienes materias asignadas a esta sección todavía.
+                      </p>
+                      {isIndependent && (
+                        <button
+                          onClick={() => {
+                            setAssignGroupId(sectionModalForGrading.id);
+                            setAssignError(null);
+                            setSectionModalForGrading(null);
+                            setIsAssignSubjectOpen(true);
+                          }}
+                          className="btn btn-primary btn-sm"
+                        >
+                          <PlusCircle size={15} /> + Vincular Materia a esta Sección
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return sectionAssignments.map(asg => {
+                  const subject = subjects.find(s => s.id === asg.subjectId);
+                  const config = evaluationConfigs.find(c => c.assignmentId === asg.id) || {
+                    id: 'tmp',
+                    assignmentId: asg.id,
+                    periodId: 'I_PERIODO',
+                    passingGrade: 70,
+                    periodWeight: 50,
+                    rubrics: []
+                  };
+                  const enabledRubrics = config.rubrics.filter(r => r.enabled);
+
+                  return (
+                    <div
+                      key={asg.id}
+                      className="glass-panel hover-lift"
+                      style={{
+                        padding: '18px 20px',
+                        borderRadius: '14px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-surface)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '4px',
+                              background: subject?.color || '#4f46e5'
+                            }} />
+                            <h4 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
+                              {subject?.name}
+                            </h4>
+                            {asg.isGuia && (
+                              <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.15)', color: '#7c3aed', fontSize: '0.72rem' }}>
+                                Docente Guía
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            Código: {subject?.code} • Nota Mínima: <strong>{config.passingGrade} pts</strong>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => {
+                              setSectionModalForGrading(null);
+                              onOpenRubricsConfig(asg);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            title="Personalizar rubros y porcentajes"
+                          >
+                            <SlidersHorizontal size={14} color="#6366f1" />
+                            Rubros
+                          </button>
+                          {isIndependent && (
+                            <button
+                              onClick={() => handleDeleteAssignment(asg)}
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: '#ef4444' }}
+                              title="Desvincular materia"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Rubros activos resumen */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {enabledRubrics.map(r => (
+                          <span key={r.id} style={{
+                            fontSize: '0.72rem',
+                            background: 'var(--bg-main)',
+                            border: '1px solid var(--border-subtle)',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 600
+                          }}>
+                            {r.label}: <strong style={{ color: '#4f46e5' }}>{r.percentage}%</strong>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Botón Principal para Entrar a Calificar */}
+                      <div style={{ paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
+                        <button
+                          onClick={() => {
+                            setSectionModalForGrading(null);
+                            onSelectAssignment(asg);
+                          }}
+                          className="btn btn-primary btn-sm"
+                          style={{
+                            width: '100%',
+                            justifyContent: 'space-between',
+                            background: `linear-gradient(135deg, ${subject?.color || '#4f46e5'} 0%, #4338ca 100%)`,
+                            padding: '10px 16px',
+                            fontWeight: 700
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FileSpreadsheet size={16} />
+                            Abrir Registro de Calificaciones y Reportes
+                          </span>
+                          <ArrowRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '14px 24px',
+              borderTop: '1px solid var(--border-subtle)',
+              background: 'var(--bg-surface)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    setStudentManagingGroupId(sectionModalForGrading.id);
+                    setSectionModalForGrading(null);
+                    setIsManageStudentsOpen(true);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <Users size={14} color="#10b981" />
+                  Nómina de Estudiantes
+                </button>
+                {isIndependent && (
+                  <button
+                    onClick={() => {
+                      setAssignGroupId(sectionModalForGrading.id);
+                      setAssignError(null);
+                      setSectionModalForGrading(null);
+                      setIsAssignSubjectOpen(true);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <PlusCircle size={14} color="#4f46e5" />
+                    + Vincular Otra Materia
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setSectionModalForGrading(null)}
+                className="btn btn-secondary btn-sm"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
