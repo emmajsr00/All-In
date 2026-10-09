@@ -26,7 +26,9 @@ import {
   GraduationCap,
   UserCheck,
   Search,
-  Filter
+  Filter,
+  UploadCloud,
+  FileText
 } from 'lucide-react';
 import type {
   User,
@@ -106,11 +108,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isImportStudentsModalOpen, setIsImportStudentsModalOpen] = useState(false);
   const [sectionModalForGrading, setSectionModalForGrading] = useState<Group | null>(null);
 
-  // Filtros de Secciones a Cargo en el Dashboard
+  // Filtros de Secciones a Cargo en el Dashboard (idéntico a DirectorView)
   const [sectionSearchQuery, setSectionSearchQuery] = useState('');
-  const [sectionGradeFilter, setSectionGradeFilter] = useState<'ALL' | string>('ALL');
-  const [sectionRoleFilter, setSectionRoleFilter] = useState<'ALL' | 'GUIA' | 'SUBJECT'>('ALL');
-  const [selectedSectionPill, setSelectedSectionPill] = useState<string>('ALL');
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<number | 'ALL'>('ALL');
+
+  const getGradeLabel = (grade: number) => {
+    switch (grade) {
+      case 1: return 'Primeros (1°)';
+      case 2: return 'Segundos (2°)';
+      case 3: return 'Terceros (3°)';
+      case 4: return 'Cuartos (4°)';
+      case 5: return 'Quintos (5°)';
+      case 6: return 'Sextos (6°)';
+      case 7: return 'Sétimos (7°)';
+      case 8: return 'Octavos (8°)';
+      case 9: return 'Novenos (9°)';
+      case 10: return 'Décimos (10°)';
+      case 11: return 'Undécimos (11°)';
+      case 12: return 'Duodécimos (12°)';
+      default: return `${grade}° Año`;
+    }
+  };
 
   // Modal de confirmación personalizada
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -396,31 +414,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? myGroups
     : groups.filter(g => userAssignments.some(a => a.groupId === g.id));
 
-  // Grados / Niveles únicos para el selector de filtros
-  const distinctGrades = Array.from(new Set(allTeacherSections.map(g => g.grade))).sort((a, b) => a - b);
+  // Grados / Niveles únicos para los botones de filtro estilo Director
+  const availableGrades = Array.from(new Set(allTeacherSections.map(g => g.grade))).sort((a, b) => a - b);
 
-  // Secciones filtradas para el panel principal
+  // Filtrado reactivo de Secciones / Grupos (idéntico a DirectorView)
   const sectionsToDisplay = allTeacherSections.filter(grp => {
-    // Filtro por píldora de sección específica
-    if (selectedSectionPill !== 'ALL' && grp.id !== selectedSectionPill) return false;
+    if (selectedGradeFilter !== 'ALL' && grp.grade !== selectedGradeFilter) {
+      return false;
+    }
 
-    // Filtro por grado / nivel
-    if (sectionGradeFilter !== 'ALL' && String(grp.grade) !== sectionGradeFilter) return false;
-
-    // Filtro por rol (Docente Guía vs Solo Asignatura)
-    const grpAsgs = userAssignments.filter(a => a.groupId === grp.id);
-    const isGuia = grp.guideTeacherId === currentUser.id || grpAsgs.some(a => a.isGuia);
-    if (sectionRoleFilter === 'GUIA' && !isGuia) return false;
-    if (sectionRoleFilter === 'SUBJECT' && isGuia) return false;
-
-    // Filtro por texto / código de sección
     if (sectionSearchQuery.trim()) {
       const q = sectionSearchQuery.toLowerCase().trim();
+      const isNumericOnly = /^\d+$/.test(q);
+
+      if (isNumericOnly) {
+        const gradeMatch = grp.grade.toString() === q;
+        const codeStartsWith = grp.sectionCode.toLowerCase().startsWith(q);
+        const codePrefixMatch = grp.sectionCode.toLowerCase().split(/[-_.\s]/)[0] === q;
+        const groupNameHasNumber = grp.groupName
+          ? new RegExp(`\\b${q}\\b`, 'i').test(grp.groupName) || grp.groupName.toLowerCase().startsWith(q)
+          : false;
+
+        return gradeMatch || codeStartsWith || codePrefixMatch || groupNameHasNumber;
+      }
+
       const codeMatch = grp.sectionCode.toLowerCase().includes(q);
-      const nameMatch = grp.groupName?.toLowerCase().includes(q);
-      const specialtyMatch = grp.specialty?.toLowerCase().includes(q);
-      const gradeMatch = `${grp.grade}`.includes(q) || `${grp.grade}°`.includes(q);
-      return codeMatch || nameMatch || specialtyMatch || gradeMatch;
+      const nameMatch = grp.groupName ? grp.groupName.toLowerCase().includes(q) : false;
+      const specMatch = grp.specialty ? grp.specialty.toLowerCase().includes(q) : false;
+
+      const secAsgs = userAssignments.filter(a => a.groupId === grp.id);
+      const subjectMatch = secAsgs.some(a => {
+        const sub = subjects.find(s => s.id === a.subjectId);
+        return sub && sub.name.toLowerCase().includes(q);
+      });
+
+      return codeMatch || nameMatch || specMatch || subjectMatch;
     }
 
     return true;
@@ -709,114 +737,126 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Barra de Filtros de Secciones */}
+          {/* Barra de Búsqueda y Filtros por Grado/Nivel idéntica a Director */}
           <div className="glass-panel" style={{
-            padding: '14px 18px',
-            marginBottom: '18px',
+            padding: '16px 20px',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+            borderRadius: '14px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '14px'
+            gap: '14px',
+            marginBottom: '20px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              {/* Buscador de Sección */}
-              <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-                <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+              {/* Buscador de secciones */}
+              <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+                <Search size={18} color="#6366f1" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="text"
-                  placeholder="Buscar sección (ej. 7-1, 10-A, Décimo, NRC...)"
                   value={sectionSearchQuery}
-                  onChange={(e) => setSectionSearchQuery(e.target.value)}
+                  onChange={e => setSectionSearchQuery(e.target.value)}
+                  placeholder="Buscar sección (ej. 12, 10-1) o materia..."
                   className="input-field"
-                  style={{ width: '100%', paddingLeft: '36px', fontSize: '0.85rem' }}
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    paddingLeft: '42px',
+                    paddingRight: sectionSearchQuery ? '38px' : '16px',
+                    fontSize: '0.9rem',
+                    borderRadius: '12px',
+                    border: '1.5px solid var(--border-subtle)',
+                    background: 'var(--bg-main)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                  }}
                 />
                 {sectionSearchQuery && (
                   <button
+                    type="button"
                     onClick={() => setSectionSearchQuery('')}
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      padding: '4px'
+                    }}
+                    title="Borrar búsqueda"
                   >
-                    <X size={14} />
+                    <X size={15} />
                   </button>
                 )}
               </div>
 
-              {/* Filtro por Grado / Nivel */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Filter size={15} color="#4f46e5" />
-                <select
-                  value={sectionGradeFilter}
-                  onChange={(e) => setSectionGradeFilter(e.target.value)}
-                  className="input-field"
-                  style={{ padding: '6px 10px', fontSize: '0.82rem', fontWeight: 600 }}
-                >
-                  <option value="ALL">Todos los Niveles ({distinctGrades.length})</option>
-                  {distinctGrades.map(grade => (
-                    <option key={grade} value={String(grade)}>
-                      {grade}° Año / Nivel
-                    </option>
-                  ))}
-                </select>
+              {/* Contador y Limpiar Filtros */}
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Filter size={14} color="#4f46e5" />
+                <span>
+                  Mostrando <strong>{sectionsToDisplay.length}</strong> de <strong>{allTeacherSections.length}</strong> secciones
+                </span>
+                {(selectedGradeFilter !== 'ALL' || sectionSearchQuery) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGradeFilter('ALL');
+                      setSectionSearchQuery('');
+                    }}
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '2px 8px', color: '#ef4444' }}
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
               </div>
-
-              {/* Filtro por Rol / Guía */}
-              <div>
-                <select
-                  value={sectionRoleFilter}
-                  onChange={(e) => setSectionRoleFilter(e.target.value as any)}
-                  className="input-field"
-                  style={{ padding: '6px 10px', fontSize: '0.82rem', fontWeight: 600 }}
-                >
-                  <option value="ALL">Todas las Funciones</option>
-                  <option value="GUIA">Docente Guía</option>
-                  <option value="SUBJECT">Solo Asignaturas</option>
-                </select>
-              </div>
-
-              {/* Limpiar Filtros */}
-              {(sectionSearchQuery || sectionGradeFilter !== 'ALL' || sectionRoleFilter !== 'ALL' || selectedSectionPill !== 'ALL') && (
-                <button
-                  onClick={() => {
-                    setSectionSearchQuery('');
-                    setSectionGradeFilter('ALL');
-                    setSectionRoleFilter('ALL');
-                    setSelectedSectionPill('ALL');
-                  }}
-                  className="btn btn-ghost btn-sm"
-                  style={{ fontSize: '0.78rem', padding: '4px 8px', color: '#ef4444' }}
-                >
-                  <X size={13} /> Limpiar Filtros
-                </button>
-              )}
             </div>
 
-            {/* Píldoras rápidas de acceso a cada sección */}
-            {allTeacherSections.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingTop: '4px', borderTop: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: '4px' }}>
-                  Acceso Rápido:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSectionPill('ALL')}
-                  className={`btn btn-sm ${selectedSectionPill === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ fontSize: '0.74rem', padding: '3px 10px', borderRadius: '999px', whiteSpace: 'nowrap' }}
-                >
-                  Todas ({allTeacherSections.length})
-                </button>
-                {allTeacherSections.map(g => (
+            {/* Filtros de Grado / Nivel automáticos estilo Director */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '4px' }}>
+                Filtrar por nivel:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedGradeFilter('ALL')}
+                className={`btn btn-sm ${selectedGradeFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  fontSize: '0.78rem',
+                  padding: '4px 14px',
+                  borderRadius: '20px',
+                  fontWeight: selectedGradeFilter === 'ALL' ? 700 : 500,
+                  background: selectedGradeFilter === 'ALL' ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined
+                }}
+              >
+                Todos ({allTeacherSections.length})
+              </button>
+
+              {availableGrades.map(grade => {
+                const count = allTeacherSections.filter(g => g.grade === grade).length;
+                const isSelected = selectedGradeFilter === grade;
+
+                return (
                   <button
-                    key={g.id}
                     type="button"
-                    onClick={() => setSelectedSectionPill(selectedSectionPill === g.id ? 'ALL' : g.id)}
-                    className={`btn btn-sm ${selectedSectionPill === g.id ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ fontSize: '0.74rem', padding: '3px 10px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                    key={grade}
+                    onClick={() => setSelectedGradeFilter(isSelected ? 'ALL' : grade)}
+                    className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{
+                      fontSize: '0.78rem',
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      fontWeight: isSelected ? 700 : 500,
+                      background: isSelected ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined
+                    }}
                   >
-                    Secc. {g.sectionCode}
+                    {getGradeLabel(grade)} ({count})
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
 
           {/* Grid de Secciones o Estado Vacío de Filtro */}
@@ -838,9 +878,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 onClick={() => {
                   setSectionSearchQuery('');
-                  setSectionGradeFilter('ALL');
-                  setSectionRoleFilter('ALL');
-                  setSelectedSectionPill('ALL');
+                  setSelectedGradeFilter('ALL');
                 }}
                 className="btn btn-secondary btn-sm"
               >
@@ -878,8 +916,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   }}
                 >
                   <div>
-                    {/* Top: Badges */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    {/* Top: Badges & Botones de acción rápida sobre la sección */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span className="badge" style={{
                           background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
@@ -890,6 +928,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         }}>
                           Sección {grp.sectionCode}
                         </span>
+                        <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                          Año {grp.year}
+                        </span>
                         {isGuia && (
                           <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.15)', color: '#7c3aed', fontSize: '0.75rem' }}>
                             Docente Guía
@@ -897,9 +938,63 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         )}
                       </div>
 
-                      <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)', fontSize: '0.78rem' }}>
-                        👥 {grpStudents.length} alumnos
-                      </span>
+                      {/* Botones de acción rápida estilo Director */}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStudentManagingGroupId(grp.id);
+                            setIsManageStudentsOpen(true);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                          title="Gestionar nómina de estudiantes"
+                        >
+                          <Users size={14} color="#4f46e5" />
+                          <span>{grpStudents.length} Alumnos</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStudentManagingGroupId(grp.id);
+                            setIsImportStudentsModalOpen(true);
+                          }}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '5px', color: '#10b981' }}
+                          title="Importar lista de estudiantes desde Excel a esta sección"
+                        >
+                          <UploadCloud size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStudentManagingGroupId(grp.id);
+                            setIsAddStudentModalOpen(true);
+                          }}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '5px', color: '#4f46e5' }}
+                          title="Agregar estudiante a esta sección"
+                        >
+                          <UserPlus size={15} />
+                        </button>
+                        {isIndependent && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteGroup(grp);
+                            }}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '5px', color: '#ef4444' }}
+                            title="Eliminar sección"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Section Name & Level */}
