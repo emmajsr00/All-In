@@ -629,7 +629,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
         >
           <Clock size={16} />
-          <span>Creador de Horarios por Docente</span>
+          <span>Creador de Horarios</span>
         </button>
       </div>
 
@@ -1570,7 +1570,7 @@ export const DirectorView: React.FC<DirectorViewProps> = ({
         </div>
       )}
 
-      {/* PESTAÑA 4: CREADOR Y GESTIÓN DE HORARIOS POR DOCENTE */}
+      {/* PESTAÑA 4: CREADOR DE HORARIOS */}
       {activeTab === 'SCHEDULES' && (
         <TeacherScheduleBuilder
           teachers={teachers}
