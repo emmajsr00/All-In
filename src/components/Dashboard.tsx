@@ -140,10 +140,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       if (found) {
         setCurrentActiveSchedule(found);
-      } else if (schedules.length > 0) {
-        // En demostración mostramos la primera para que el docente pueda ver la experiencia activa
-        const teacherSchedules = schedules.filter(s => s.teacherId === currentUser.id);
-        setCurrentActiveSchedule(teacherSchedules[0] || null);
+      } else {
+        setCurrentActiveSchedule(null);
       }
     };
 
