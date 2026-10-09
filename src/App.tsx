@@ -25,6 +25,8 @@ import { RubricsConfigModal } from './components/RubricsConfigModal';
 import { ScheduleModal } from './components/ScheduleModal';
 import { LoginView } from './components/LoginView';
 import { DeveloperView } from './components/DeveloperView';
+import { TeacherInstitutionHub } from './components/TeacherInstitutionHub';
+import { TeacherSidebar, TeacherTab } from './components/TeacherSidebar';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,13 @@ export const App: React.FC = () => {
   });
   const [isDeveloperPanelActive, setIsDeveloperPanelActive] = useState<boolean>(true);
   const [selectedDevInstitutionId, setSelectedDevInstitutionId] = useState<string | null>(null);
+
+  // Teacher Workspace State (Sede elegida al entrar y pestaña activa)
+  const [teacherSelectedInstitutionId, setTeacherSelectedInstitutionId] = useState<string | null>(() => {
+    return sessionStorage.getItem('allin_teacher_active_inst_id');
+  });
+  const [teacherActiveTab, setTeacherActiveTab] = useState<TeacherTab>('overview');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Core entities
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -116,6 +125,9 @@ export const App: React.FC = () => {
   const handleLogin = (user: User) => {
     setCurrentUserId(user.id);
     localStorage.setItem('allin_auth_user_id', user.id);
+    sessionStorage.removeItem('allin_teacher_active_inst_id');
+    setTeacherSelectedInstitutionId(null);
+    setTeacherActiveTab('overview');
     if (user.role === 'DEVELOPER') {
       setIsDeveloperPanelActive(true);
     }
@@ -124,6 +136,8 @@ export const App: React.FC = () => {
   const handleLogout = () => {
     setCurrentUserId(null);
     localStorage.removeItem('allin_auth_user_id');
+    sessionStorage.removeItem('allin_teacher_active_inst_id');
+    setTeacherSelectedInstitutionId(null);
     setSelectedAssignment(null);
     setIsDeveloperPanelActive(false);
   };
@@ -167,9 +181,35 @@ export const App: React.FC = () => {
   }
 
   // Active institution (Para Desarrollador o Docentes que laboran en múltiples instituciones)
-  const currentInstitution = (currentUser.role === 'DEVELOPER' || currentUser.role === 'TEACHER') && selectedDevInstitutionId
-    ? (allInstitutions.find(i => i.id === selectedDevInstitutionId) || allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0])
+  const activeInstitutionId = currentUser.role === 'TEACHER'
+    ? (teacherSelectedInstitutionId || selectedDevInstitutionId || currentUser.institutionId)
+    : (selectedDevInstitutionId || currentUser.institutionId);
+
+  const currentInstitution = (currentUser.role === 'DEVELOPER' || currentUser.role === 'TEACHER') && activeInstitutionId
+    ? (allInstitutions.find(i => i.id === activeInstitutionId) || allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0])
     : (allInstitutions.find(i => i.id === currentUser.institutionId) || allInstitutions[0]);
+
+  // Si es un docente y aún no ha seleccionado la institución con la que trabajará en esta sesión:
+  if (currentUser.role === 'TEACHER' && !teacherSelectedInstitutionId) {
+    return (
+      <TeacherInstitutionHub
+        currentUser={currentUser}
+        allInstitutions={allInstitutions}
+        groups={groups}
+        assignments={assignments}
+        onSelectInstitution={(instId) => {
+          setTeacherSelectedInstitutionId(instId);
+          sessionStorage.setItem('allin_teacher_active_inst_id', instId);
+          setSelectedDevInstitutionId(instId);
+          setSelectedAssignment(null);
+          setTeacherActiveTab('overview');
+        }}
+        onLogout={handleLogout}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
 
   // Filter groups/assignments for current institution
   const institutionGroups = groups.filter(g => g.institutionId === currentInstitution?.id);
@@ -222,118 +262,158 @@ export const App: React.FC = () => {
     : null;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Header */}
-      <Header
-        currentUser={currentUser}
-        currentInstitution={currentInstitution}
-        allUsers={allUsers}
-        allInstitutions={allInstitutions}
-        onSwitchInstitution={(id) => {
-          setSelectedDevInstitutionId(id);
-          setIsDeveloperPanelActive(false);
-          setSelectedAssignment(null);
-        }}
-        onGoToDeveloperPanel={() => {
-          setIsDeveloperPanelActive(true);
-          setSelectedAssignment(null);
-        }}
-        onLogout={handleLogout}
-        isDarkMode={isDarkMode}
-        onToggleTheme={toggleTheme}
-        onNavigateHome={() => {
-          setSelectedAssignment(null);
-          if (currentUser.role === 'DEVELOPER') {
-            setIsDeveloperPanelActive(true);
-          }
-        }}
-        isDeveloperPanelActive={isDeveloperPanelActive}
-        onUserDataChanged={loadAppData}
-      />
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row' }}>
+      {/* Menú Lateral Pro para Docentes (oculto durante calificación completa de grupo) */}
+      {currentUser.role === 'TEACHER' && !selectedAssignment && (
+        <TeacherSidebar
+          currentUser={currentUser}
+          currentInstitution={currentInstitution}
+          activeTab={teacherActiveTab}
+          onSelectTab={(tab) => {
+            setTeacherActiveTab(tab);
+            if (tab === 'schedule') {
+              setIsScheduleOpen(true);
+            }
+          }}
+          onChangeInstitution={() => {
+            setTeacherSelectedInstitutionId(null);
+            sessionStorage.removeItem('allin_teacher_active_inst_id');
+            setSelectedAssignment(null);
+          }}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+          isIndependent={currentInstitution.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01'}
+          sectionsCount={institutionGroups.length}
+          onLogout={handleLogout}
+          isDarkMode={isDarkMode}
+          onToggleTheme={toggleTheme}
+        />
+      )}
 
-      {/* Main Content Area */}
-      <main style={{
-        flex: 1,
-        maxWidth: selectedAssignment ? '100%' : '1440px',
-        width: '100%',
-        margin: '0 auto',
-        padding: selectedAssignment ? '14px 16px 60px' : '24px 20px 60px'
-      }}>
-        {/* VISTA 1: Panel Desarrollador (Master) */}
-        {currentUser.role === 'DEVELOPER' && isDeveloperPanelActive && !selectedAssignment ? (
-          <DeveloperView
-            allInstitutions={allInstitutions}
-            allUsers={allUsers}
-            groups={groups}
-            students={students}
-            onSelectInstitution={(instId) => {
-              setSelectedDevInstitutionId(instId);
-              setIsDeveloperPanelActive(false);
-            }}
-            onDataChanged={loadAppData}
-          />
-        ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
-          /* VISTA 2: Calificaciones Grupales / Workspace del Grupo */
-          <GroupWorkspaceView
-            institutionName={currentInstitution?.name || 'ALL-IN'}
-            userRole={currentUser.role}
-            assignment={selectedAssignment}
-            group={activeGroup}
-            subject={activeSubject}
-            teacherName={currentUser.name}
-            students={students.filter(s => s.groupId === selectedAssignment.groupId)}
-            config={activeConfig}
-            indicators={indicators.filter(i => i.assignmentId === selectedAssignment.id)}
-            sessions={sessions.filter(s => s.assignmentId === selectedAssignment.id)}
-            sessionDetails={sessionDetails}
-            taskGrades={taskGrades.filter(t => t.assignmentId === selectedAssignment.id)}
-            examGrades={examGrades.filter(e => e.assignmentId === selectedAssignment.id)}
-            projectGrades={projectGrades.filter(p => p.assignmentId === selectedAssignment.id)}
-            portfolioGrades={portfolioGrades.filter(p => p.assignmentId === selectedAssignment.id)}
-            onBackToDashboard={() => setSelectedAssignment(null)}
-            onOpenRubricsConfig={() => setRubricsConfigAssignment(selectedAssignment)}
-            onDataChanged={loadAppData}
-          />
-        ) : (currentUser.role === 'DIRECTOR' || currentUser.role === 'ADMIN' || (currentUser.role === 'DEVELOPER' && !isDeveloperPanelActive)) ? (
-          /* VISTA 3: Supervisión Directiva e Institucional */
-          <DirectorView
-            institutionId={currentInstitution.id}
-            institutionName={currentInstitution.name}
-            institutionType={currentInstitution.type}
-            groups={institutionGroups}
-            subjects={institutionSubjects}
-            assignments={institutionAssignments}
-            teachers={institutionTeachers}
-            allUsers={allUsers}
-            students={students}
-            evaluationConfigs={evaluationConfigs}
-            schedules={schedules}
-            onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
-            onDataChanged={loadAppData}
-          />
-        ) : (
-          /* VISTA 4: Panel Docente */
-          <Dashboard
-            currentUser={currentUser}
-            currentInstitution={currentInstitution}
-            allInstitutions={allInstitutions}
-            groups={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? groups : institutionGroups}
-            subjects={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? subjects : institutionSubjects}
-            assignments={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? assignments : institutionAssignments}
-            students={students}
-            evaluationConfigs={evaluationConfigs}
-            schedules={schedules}
-            onSelectAssignment={(asg) => setSelectedAssignment(asg)}
-            onOpenRubricsConfig={(asg) => setRubricsConfigAssignment(asg)}
-            onOpenSchedule={() => setIsScheduleOpen(true)}
-            onSwitchInstitution={(id) => {
-              setSelectedDevInstitutionId(id);
-              setSelectedAssignment(null);
-            }}
-            onDataChanged={loadAppData}
-          />
-        )}
-      </main>
+      {/* Contenedor Principal */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto' }}>
+        {/* Top Header */}
+        <Header
+          currentUser={currentUser}
+          currentInstitution={currentInstitution}
+          allUsers={allUsers}
+          allInstitutions={allInstitutions}
+          onSwitchInstitution={(id) => {
+            setSelectedDevInstitutionId(id);
+            setTeacherSelectedInstitutionId(id);
+            setIsDeveloperPanelActive(false);
+            setSelectedAssignment(null);
+          }}
+          onGoToDeveloperPanel={() => {
+            setIsDeveloperPanelActive(true);
+            setSelectedAssignment(null);
+          }}
+          onLogout={handleLogout}
+          isDarkMode={isDarkMode}
+          onToggleTheme={toggleTheme}
+          onNavigateHome={() => {
+            setSelectedAssignment(null);
+            setTeacherActiveTab('overview');
+            if (currentUser.role === 'DEVELOPER') {
+              setIsDeveloperPanelActive(true);
+            }
+          }}
+          isDeveloperPanelActive={isDeveloperPanelActive}
+          onUserDataChanged={loadAppData}
+        />
+
+        {/* Main Content Area */}
+        <main style={{
+          flex: 1,
+          maxWidth: selectedAssignment ? '100%' : '1440px',
+          width: '100%',
+          margin: '0 auto',
+          padding: selectedAssignment ? '14px 16px 60px' : '32px 36px 60px'
+        }}>
+          {/* VISTA 1: Panel Desarrollador (Master) */}
+          {currentUser.role === 'DEVELOPER' && isDeveloperPanelActive && !selectedAssignment ? (
+            <DeveloperView
+              allInstitutions={allInstitutions}
+              allUsers={allUsers}
+              groups={groups}
+              students={students}
+              onSelectInstitution={(instId) => {
+                setSelectedDevInstitutionId(instId);
+                setIsDeveloperPanelActive(false);
+              }}
+              onDataChanged={loadAppData}
+            />
+          ) : selectedAssignment && activeGroup && activeSubject && activeConfig ? (
+            /* VISTA 2: Calificaciones Grupales / Workspace del Grupo */
+            <GroupWorkspaceView
+              institutionName={currentInstitution?.name || 'ALL-IN'}
+              userRole={currentUser.role}
+              assignment={selectedAssignment}
+              group={activeGroup}
+              subject={activeSubject}
+              teacherName={currentUser.name}
+              students={students.filter(s => s.groupId === selectedAssignment.groupId)}
+              config={activeConfig}
+              indicators={indicators.filter(i => i.assignmentId === selectedAssignment.id)}
+              sessions={sessions.filter(s => s.assignmentId === selectedAssignment.id)}
+              sessionDetails={sessionDetails}
+              taskGrades={taskGrades.filter(t => t.assignmentId === selectedAssignment.id)}
+              examGrades={examGrades.filter(e => e.assignmentId === selectedAssignment.id)}
+              projectGrades={projectGrades.filter(p => p.assignmentId === selectedAssignment.id)}
+              portfolioGrades={portfolioGrades.filter(p => p.assignmentId === selectedAssignment.id)}
+              onBackToDashboard={() => setSelectedAssignment(null)}
+              onOpenRubricsConfig={() => setRubricsConfigAssignment(selectedAssignment)}
+              onDataChanged={loadAppData}
+            />
+          ) : (currentUser.role === 'DIRECTOR' || currentUser.role === 'ADMIN' || (currentUser.role === 'DEVELOPER' && !isDeveloperPanelActive)) ? (
+            /* VISTA 3: Supervisión Directiva e Institucional */
+            <DirectorView
+              institutionId={currentInstitution.id}
+              institutionName={currentInstitution.name}
+              institutionType={currentInstitution.type}
+              groups={institutionGroups}
+              subjects={institutionSubjects}
+              assignments={institutionAssignments}
+              teachers={institutionTeachers}
+              allUsers={allUsers}
+              students={students}
+              evaluationConfigs={evaluationConfigs}
+              schedules={schedules}
+              onOpenGroupGradebook={(asg) => setSelectedAssignment(asg)}
+              onDataChanged={loadAppData}
+            />
+          ) : (
+            /* VISTA 4: Panel Docente */
+            <Dashboard
+              currentUser={currentUser}
+              currentInstitution={currentInstitution}
+              allInstitutions={allInstitutions}
+              groups={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? groups : institutionGroups}
+              subjects={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? subjects : institutionSubjects}
+              assignments={currentInstitution?.type === 'INDEPENDENT' || currentUser.institutionId === 'inst-indep-01' ? assignments : institutionAssignments}
+              students={students}
+              evaluationConfigs={evaluationConfigs}
+              schedules={schedules}
+              activeTab={teacherActiveTab}
+              onSelectTab={(tab) => {
+                setTeacherActiveTab(tab);
+                if (tab === 'schedule') {
+                  setIsScheduleOpen(true);
+                }
+              }}
+              onSelectAssignment={(asg) => setSelectedAssignment(asg)}
+              onOpenRubricsConfig={(asg) => setRubricsConfigAssignment(asg)}
+              onOpenSchedule={() => setIsScheduleOpen(true)}
+              onSwitchInstitution={(id) => {
+                setSelectedDevInstitutionId(id);
+                setTeacherSelectedInstitutionId(id);
+                setSelectedAssignment(null);
+              }}
+              onDataChanged={loadAppData}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Rubrics Config Modal */}
       {rubricsConfigAssignment && (

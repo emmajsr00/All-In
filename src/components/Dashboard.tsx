@@ -58,6 +58,8 @@ interface DashboardProps {
   students: Student[];
   evaluationConfigs: EvaluationConfig[];
   schedules: ScheduleItem[];
+  activeTab?: 'overview' | 'sections' | 'schedule' | 'independent';
+  onSelectTab?: (tab: 'overview' | 'sections' | 'schedule' | 'independent') => void;
   onSelectAssignment: (assignment: TeacherAssignment) => void;
   onOpenRubricsConfig: (assignment: TeacherAssignment) => void;
   onOpenSchedule: () => void;
@@ -75,6 +77,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   students,
   evaluationConfigs,
   schedules,
+  activeTab = 'overview',
+  onSelectTab,
   onSelectAssignment,
   onOpenRubricsConfig,
   onOpenSchedule,
@@ -602,174 +606,154 @@ export const Dashboard: React.FC<DashboardProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Welcome Banner */}
-      <div className="glass-panel" style={{
-        padding: '28px',
-        background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(124, 58, 237, 0.08) 100%)',
-        border: '1px solid rgba(79, 70, 229, 0.25)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span className="badge" style={{ background: isIndependent ? '#4f46e5' : 'rgba(79, 70, 229, 0.2)', color: isIndependent ? '#ffffff' : '#4f46e5' }}>
-                <Sparkles size={12} /> {isIndependent ? 'Docente Independiente' : (currentUser.title || 'Docente')}
-              </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {todayFormatted}
-              </span>
-            </div>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              ¡Hola, <span className="gradient-text">{currentUser.name}</span>!
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '6px', maxWidth: '650px' }}>
-              {isIndependent
-                ? 'Bienvenido a tu espacio de docente independiente. Aquí puedes crear tus propias secciones, materias que vas a dar, asignar asignaturas y matricular alumnos con total autonomía.'
-                : 'Bienvenido a tu panel docente. Abre cualquiera de tus grupos para acceder al registro general de calificaciones, control de asistencia por lecciones y evaluación por rubros individuales.'}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={onOpenSchedule} className="btn btn-secondary">
-              <Clock size={16} color="#6366f1" />
-              Horario Semanal
-            </button>
-          </div>
-        </div>
-
-        {/* SELECTOR DE INSTITUCIÓN (PANTALLA INICIAL) */}
-        <div style={{
-          marginTop: '22px',
-          padding: '16px 20px',
-          background: 'var(--bg-card)',
-          borderRadius: '16px',
-          border: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '14px',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+      {/* Welcome Banner (Solo en pantalla de Inicio / Resumen) */}
+      {activeTab === 'overview' && (
+        <div className="glass-panel" style={{
+          padding: '32px 36px',
+          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(124, 58, 237, 0.05) 100%)',
+          border: '1px solid rgba(79, 70, 229, 0.2)',
+          borderRadius: '24px',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
-              flexShrink: 0
-            }}>
-              <Building2 size={22} />
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
             <div>
-              <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6366f1' }}>
-                Institución Actual / Sede de Trabajo
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                <span className="badge" style={{ background: isIndependent ? '#4f46e5' : 'rgba(79, 70, 229, 0.18)', color: isIndependent ? '#ffffff' : '#4f46e5', fontWeight: 800 }}>
+                  <Sparkles size={12} /> {isIndependent ? 'Docente Independiente' : (currentUser.title || 'Docente')}
+                </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {todayFormatted}
+                </span>
+                <span className="badge" style={{
+                  background: 'var(--bg-card)',
+                  color: 'var(--primary-600)',
+                  border: '1px solid var(--border-subtle)',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <Building2 size={13} /> {currentInstitution.name}
+                </span>
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>{currentInstitution?.name || 'Institución no asignada'}</span>
-                {teacherLinkedInstitutions.length === 1 && (
-                  <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
-                    Sede Asignada
-                  </span>
-                )}
-              </div>
+              <h1 style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.2 }}>
+                ¡Hola, <span className="gradient-text">{currentUser.name}</span>!
+              </h1>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.96rem', marginTop: '8px', maxWidth: '680px', lineHeight: 1.5 }}>
+                {isIndependent
+                  ? 'Bienvenido a tu espacio de docente independiente. Administra tus secciones, materias, matrícula y registro de notas con total autonomía.'
+                  : 'Bienvenido a tu panel docente. Accede rápidamente a tus lecciones de hoy o navega en tus grupos a cargo para pasar asistencia y calificar.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => onSelectTab ? onSelectTab('sections') : undefined}
+                className="btn btn-primary"
+                style={{ padding: '10px 18px', borderRadius: '12px', fontWeight: 700, gap: '8px' }}
+              >
+                <Layers size={16} />
+                <span>Mis Secciones ({sectionsToDisplay.length})</span>
+              </button>
+              <button
+                onClick={onOpenSchedule}
+                className="btn btn-secondary"
+                style={{ padding: '10px 16px', borderRadius: '12px', gap: '8px' }}
+              >
+                <Clock size={16} color="#6366f1" />
+                <span>Horario Semanal</span>
+              </button>
             </div>
           </div>
 
-          {/* Si el docente está vinculado a múltiples instituciones, puede alternar entre ellas aquí */}
-          {teacherLinkedInstitutions.length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                Cambiar de institución:
-              </span>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {teacherLinkedInstitutions.map((inst) => {
-                  const isSelected = inst.id === currentInstitution?.id;
-                  return (
-                    <button
-                      key={inst.id}
-                      onClick={() => onSwitchInstitution?.(inst.id)}
-                      className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '7px',
-                        padding: '7px 14px',
-                        borderRadius: '10px',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        border: isSelected ? '1.5px solid #4f46e5' : '1px solid var(--border-subtle)',
-                        boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.3)' : 'none'
-                      }}
-                      title={`Cambiar a ${inst.name}`}
-                    >
-                      <Building2 size={14} opacity={isSelected ? 1 : 0.65} />
-                      <span>{inst.name}</span>
-                      {isSelected && <Check size={14} strokeWidth={3} />}
-                    </button>
-                  );
-                })}
+          {/* Quick Stats Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+            marginTop: '28px'
+          }}>
+            <div
+              onClick={() => onSelectTab?.('sections')}
+              style={{
+                background: 'var(--bg-card)',
+                padding: '18px 22px',
+                borderRadius: '16px',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: 'var(--shadow-sm)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              className="hover-lift"
+              title="Ver mis grupos a cargo"
+            >
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Users size={15} color="#4f46e5" /> Grupos a Cargo
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, marginTop: '4px' }}>
+                {sectionsToDisplay.length} Grupos
               </div>
             </div>
-          )}
+
+            <div
+              onClick={() => onSelectTab?.('sections')}
+              style={{
+                background: 'var(--bg-card)',
+                padding: '18px 22px',
+                borderRadius: '16px',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: 'var(--shadow-sm)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              className="hover-lift"
+              title="Ver mis materias impartidas"
+            >
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BookOpen size={15} color="#06b6d4" /> Materias Impartidas
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, marginTop: '4px' }}>
+                {userAssignments.length} Asignaturas
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--bg-card)',
+              padding: '18px 22px',
+              borderRadius: '16px',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Award size={15} color="#10b981" /> Estudiantes Registrados
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, marginTop: '4px' }}>
+                {myStudents.length} Alumnos
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--bg-card)',
+              padding: '18px 22px',
+              borderRadius: '16px',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <TrendingUp size={15} color="#8b5cf6" /> Asistencia Promedio
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 900, marginTop: '4px', color: '#16a34a' }}>
+                96.4%
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Quick Stats Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '14px',
-          marginTop: '24px'
-        }}>
-          <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Users size={14} color="#4f46e5" /> Grupos a Cargo
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
-              {sectionsToDisplay.length} Grupos
-            </div>
-          </div>
-
-          <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <BookOpen size={14} color="#06b6d4" /> Materias Impartidas
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
-              {userAssignments.length} Asignaturas
-            </div>
-          </div>
-
-          <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Award size={14} color="#10b981" /> Estudiantes Registrados
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
-              {myStudents.length} Alumnos
-            </div>
-          </div>
-
-          <div style={{ background: 'var(--bg-card)', padding: '14px 18px', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <TrendingUp size={14} color="#8b5cf6" /> Asistencia Promedio
-            </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px', color: '#16a34a' }}>
-              96.4%
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Barra de Gestión de Docente Independiente */}
-      {isIndependent && (
+      {isIndependent && (activeTab === 'independent' || activeTab === 'overview') && (
         <div className="glass-panel" style={{
           padding: '22px 26px',
           background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.09) 0%, rgba(14, 165, 233, 0.07) 100%)',
@@ -835,7 +819,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* Smart Active Class Card */}
-      {currentActiveSchedule && activeAssignment && (
+      {currentActiveSchedule && activeAssignment && (activeTab === 'overview' || activeTab === 'schedule') && (
         <div className="glass-panel" style={{
           padding: '20px 24px',
           background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%)',
@@ -891,7 +875,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* Mini-Widget: Clases de Hoy / Horario Rápido del Día */}
-      <div className="glass-panel" style={{
+      {(activeTab === 'overview' || activeTab === 'schedule') && (
+        <div className="glass-panel" style={{
         padding: '20px 24px',
         borderRadius: '16px',
         border: '1px solid var(--border-subtle)',
@@ -1080,6 +1065,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Estado vacío si no hay secciones aún */}
       {sectionsToDisplay.length === 0 && (
@@ -1130,7 +1116,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* SECCIÓN PRINCIPAL: Mis Secciones a Cargo (1 Card por Sección) */}
-      {allTeacherSections.length > 0 && (
+      {(activeTab === 'overview' || activeTab === 'sections') && allTeacherSections.length > 0 && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
